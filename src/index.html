@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hellesmoveien 33 – 3D mulighetsstudie</title>
+<style>
+  :root { --bg: rgba(250, 250, 247, 0.94); --ink: #1d2329; --mute: #66707a; --acc: #2e6b4f; --line: #e2e2dc; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; font: 13px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--ink); background: #9fb6cc; }
+  #app { position: fixed; inset: 0; }
+  #panel { position: fixed; top: 10px; right: 10px; bottom: 10px; width: 340px; overflow-y: auto; background: var(--bg); border-radius: 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.18); padding: 14px 14px 20px; backdrop-filter: blur(8px); transition: transform .25s; }
+  body.panel-hidden #panel { transform: translateX(360px); }
+  #collapse { position: fixed; top: 16px; right: 360px; z-index: 5; border: 0; background: var(--bg); border-radius: 8px; padding: 6px 10px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.15); transition: right .25s; }
+  body.panel-hidden #collapse { right: 16px; }
+  h1 { font-size: 16px; margin: 0 0 2px; }
+  .sub { color: var(--mute); font-size: 12px; margin-bottom: 10px; }
+  .sec { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+  .sec h3 { margin: 0 0 6px; font-size: 13px; cursor: pointer; user-select: none; }
+  .sec h3::after { content: '▾'; float: right; color: var(--mute); }
+  .sec.closed h3::after { content: '▸'; }
+  .sec.closed > :not(h3) { display: none; }
+  .variant { display: flex; justify-content: space-between; align-items: baseline; width: 100%; text-align: left; border: 1px solid var(--line); background: #fff;
+    border-radius: 9px; padding: 7px 9px; margin: 0 0 5px; cursor: pointer; font: inherit; color: inherit; gap: 6px; }
+  .variant span { color: var(--mute); font-size: 11px; white-space: nowrap; }
+  .variant.on { border-color: var(--acc); background: #eaf3ee; box-shadow: inset 3px 0 0 var(--acc); }
+  #variantInfo p { margin: 6px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  td { padding: 3px 2px; border-bottom: 1px solid #efefea; vertical-align: top; }
+  td.lim { color: var(--mute); font-size: 11px; }
+  i.ok, i.bad { font-style: normal; font-weight: 700; margin-left: 3px; }
+  i.ok { color: #2e8b57; } i.bad { color: #d9480f; }
+  .note { color: var(--mute); font-size: 11px; }
+  label.row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; }
+  input[type=range] { width: 100%; accent-color: var(--acc); }
+  select { width: 100%; padding: 4px; border-radius: 6px; border: 1px solid var(--line); font: inherit; background: #fff; }
+  .lbl { display: flex; justify-content: space-between; color: var(--mute); font-size: 12px; margin-top: 6px; }
+  .btns { display: flex; flex-wrap: wrap; gap: 5px; }
+  .btns button, button.b { border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 5px 8px; cursor: pointer; font: inherit; }
+  .btns button.on { background: var(--acc); color: #fff; border-color: var(--acc); }
+  .dim > :not(.keep) { opacity: .45; }
+  #walkHelp { display: none; position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: rgba(20,24,28,.75); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; }
+  #cross { position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: rgba(255,255,255,.7); display: none; }
+  #walkHelp[style*="block"] ~ #cross { display: block; }
+  #loading { position: fixed; inset: 0; display: grid; place-items: center; background: #dfe7ee; font-size: 16px; z-index: 10; }
+  #credits { position: fixed; left: 10px; bottom: 8px; font-size: 10.5px; color: rgba(255,255,255,.9); text-shadow: 0 1px 2px rgba(0,0,0,.6); max-width: 55vw; }
+  #roofsTip { display: none; background: #fff6e0; border: 1px solid #f3dca2; padding: 6px 8px; border-radius: 8px; font-size: 12px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="loading">Laster terreng, vegetasjon og hytta …</div>
+<button id="collapse" title="Skjul/vis panel">☰</button>
+<div id="panel">
+  <h1>Hellesmoveien 33, Tjøme</h1>
+  <div class="sub">gnr./bnr. 243/71, Færder · 3D mulighetsstudie basert på Roots Arkitekter RA2603</div>
+
+  <div class="sec">
+    <h3>Alternativ</h3>
+    <div id="variants"></div>
+    <div id="roofsTip">Tips: slå av <b>Vis tak</b> under Visning for å se planløsningen med romnavn.</div>
+    <div id="variantInfo"></div>
+  </div>
+
+  <div class="sec">
+    <h3>Kamera</h3>
+    <div class="btns" style="margin-bottom:6px">
+      <button data-mode="orbit" class="on">🛰 Fly rundt</button>
+      <button data-mode="walk">🚶 Gå rundt (WASD)</button>
+      <button id="shot">📷 Lagre bilde</button>
+    </div>
+    <div class="btns" id="views"></div>
+  </div>
+
+  <div class="sec">
+    <h3>Sol og tid</h3>
+    <div class="lbl"><span>Dato</span><span id="dateLbl"></span></div>
+    <input type="range" id="date" min="0" max="364" step="1" />
+    <div class="lbl"><span>Klokkeslett</span><span id="timeLbl"></span></div>
+    <input type="range" id="time" min="3" max="23.5" step="0.05" />
+    <div class="note" id="sunTimes"></div>
+    <div class="note" id="sunInfo"></div>
+    <button class="b" id="play" style="margin-top:6px">▶ Spill av dagen</button>
+  </div>
+
+  <div class="sec">
+    <h3>Parkering mot veien</h3>
+    <div id="parkCtl">
+      <label class="row keep"><input type="checkbox" id="pOn" /> Vis parkeringsplass</label>
+      <div class="lbl"><span>Plassering langs Hellesmoveien</span><span>nord ↔ sør</span></div>
+      <input type="range" id="pPos" min="6" max="72" step="0.5" />
+      <div class="grid2">
+        <div><div class="lbl"><span>Antall biler</span></div><select id="pCars"><option value="2">2 biler (5,0 m bred)</option><option value="1">1 bil (3,0 m bred)</option></select></div>
+        <div><div class="lbl"><span>Dekke</span></div><select id="pSurf"></select></div>
+      </div>
+      <div class="lbl"><span>Høyde på plattform</span><span id="pLevelLbl"></span></div>
+      <input type="range" id="pLevel" min="-0.5" max="2.0" step="0.05" value="0.5" />
+      <div class="lbl"><span>Rampe fra veien</span><span id="pRampLbl"></span></div>
+      <input type="range" id="pRamp" min="0" max="10" step="0.25" value="3.5" />
+      <div class="lbl"><span>Dybde oppstillingsplass</span><span id="pDepthLbl"></span></div>
+      <input type="range" id="pDepth" min="4.5" max="7" step="0.25" value="5.0" />
+      <div class="lbl"><span>Støttemur</span></div>
+      <select id="pWall"></select>
+      <label class="row"><input type="checkbox" id="pShowCars" checked /> Vis biler</label>
+      <label class="row"><input type="checkbox" id="pRail" checked /> Rekkverk der fylling &gt; 1 m</label>
+      <button class="b keep" id="pView">Se på parkeringen</button>
+    </div>
+    <div id="parkInfo"></div>
+  </div>
+
+  <div class="sec">
+    <h3>Materialer (nye/endrede bygg)</h3>
+    <div class="lbl"><span>Kledning</span></div><select id="clad"></select>
+    <label class="row"><input type="checkbox" id="vert" /> Stående kledning</label>
+    <div class="lbl"><span>Tak</span></div><select id="roof"></select>
+  </div>
+
+  <div class="sec">
+    <h3>Visning</h3>
+    <label class="row"><input type="checkbox" id="tRoofs" checked /> Vis tak</label>
+    <label class="row"><input type="checkbox" id="tGhosts" checked /> Vis det som rives (rødt)</label>
+    <label class="row"><input type="checkbox" id="tProp" checked /> Eiendomsgrenser + 4 m byggegrense</label>
+    <label class="row"><input type="checkbox" id="tOak" checked /> Hul eik – registrert naturtype</label>
+    <label class="row"><input type="checkbox" id="tPlan" /> Arkitektens situasjonsplan på bakken</label>
+    <label class="row"><input type="checkbox" id="tTrees" checked /> Trær og vegetasjon</label>
+  </div>
+
+  <div class="sec closed">
+    <h3>Om modellen</h3>
+    <p class="note">Terreng: Kartverket NHM DTM/DOM 1 m (laserdata). Eiendomsgrenser: Matrikkelen. Nabobygg og veier: OpenStreetMap, høyder fra laser.
+      Trær er plassert automatisk der overflatemodellen viser vegetasjon (art er gjettet). Flyfoto: Esri World Imagery (vinterbilde, fargejustert).
+      Hytte, terrasse og alternativer: Roots Arkitekter RA2603 (A10-03…07, A20-02/03, A30-02/04) og egne bilder. Naturtype: Miljødirektoratet.
+      Gulvhøyder, vindusplassering på V1–V4 og takvinkler er anslag – modellen er for inspirasjon, ikke prosjektering.</p>
+  </div>
+</div>
+<div id="walkHelp">W A S D / piltaster = gå · mus = se rundt · Shift = løp · Esc = avslutt</div>
+<div id="cross"></div>
+<div id="credits">© Kartverket, Geovekst og kommuner · © OpenStreetMap-bidragsytere · Esri World Imagery · Roots Arkitekter</div>
+<script type="module">/*BUNDLE*/</script>
+</body>
+</html>
