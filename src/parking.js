@@ -200,5 +200,25 @@ export function buildParking(scene, onTerrainChange) {
     return info;
   }
 
-  return { group, params: p, rebuild, get info() { return info; }, get poly() { return edit?.poly; } };
+  // Velger plattformhøyde og rampe som gir minst skjæring/fylling, med rampe på maks ca. 15 %
+  function fitToTerrain() {
+    const save = { level: p.level, ramp: p.ramp };
+    let best = null;
+    for (let ramp = 1.5; ramp <= 6.01; ramp += 0.5) for (let level = -0.5; level <= 2.001; level += 0.05) {
+      p.ramp = ramp; p.level = level;
+      const F = frame();
+      let dev = 0;
+      for (let j = 0; j <= 12; j++) for (let i = 0; i <= 6; i++) {
+        const f = F.f0 + ((F.f1 - F.f0) * j) / 12, a = -F.W / 2 + (F.W * i) / 6;
+        dev = Math.max(dev, Math.abs(F.surf(f) - naturalHeight(...F.toLocal(a, f))));
+      }
+      const slope = Math.abs(level) / ramp;
+      const cost = dev + Math.max(0, slope - 0.15) * 20 + ramp * 0.03;
+      if (!best || cost < best.cost) best = { cost, ramp, level };
+    }
+    p.ramp = best ? best.ramp : save.ramp;
+    p.level = best ? Math.round(best.level * 20) / 20 : save.level;
+  }
+
+  return { group, params: p, rebuild, fitToTerrain, get info() { return info; }, get poly() { return edit?.poly; } };
 }

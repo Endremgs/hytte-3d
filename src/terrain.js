@@ -62,6 +62,9 @@ vec3 tri(sampler2D t, vec2 p) {
 `;
 
 function patchShader(mat, inner, horizon = false) {
+  // Egen cache-nøkkel per variant: ellers deler three.js programmet (samme onBeforeCompile-kildekode)
+  // og horisontmeshen tegnes uten discard – synlig over nedgravde flater som parkeringen.
+  mat.customProgramCacheKey = () => `terrain-${horizon ? 'horizon' : inner ? 'inner' : 'far'}`;
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, terrainUniforms);
     sh.vertexShader = sh.vertexShader

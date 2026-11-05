@@ -142,6 +142,7 @@ const parking = buildParking(scene, (edit, old) => {
   terrain.refresh(Math.min(...xs) - 1, Math.max(...xs) + 1, Math.min(...ys) - 1, Math.max(...ys) + 1);
 });
 parking.params.s = roadSOf(3.5);
+let fitted = false; // parkeringshøyde tilpasses terrenget første gang den slås på
 
 function updateExclusions() {
   const polys = [...site.footprints()];
@@ -324,7 +325,13 @@ function bindUI() {
   const pp = parking.params;
   opt($('pSurf'), SURFACES, pp.surface);
   opt($('pWall'), WALLS, pp.wall);
-  const pUI = () => {
+  const syncParkInputs = () => { $('pLevel').value = pp.level; $('pRamp').value = pp.ramp; };
+  const pUI = (ev) => {
+    if (ev?.target?.id === 'pOn' && $('pOn').checked && !fitted) {
+      // første gang: tilpass til terrenget
+      pp.s = +$('pPos').value; pp.cars = +$('pCars').value; pp.depth = +$('pDepth').value;
+      parking.fitToTerrain(); syncParkInputs(); fitted = true;
+    }
     pp.on = $('pOn').checked;
     pp.s = +$('pPos').value; pp.cars = +$('pCars').value; pp.level = +$('pLevel').value; pp.ramp = +$('pRamp').value; pp.depth = +$('pDepth').value;
     pp.surface = $('pSurf').value; pp.wall = $('pWall').value; pp.showCars = $('pShowCars').checked; pp.rail = $('pRail').checked;
@@ -336,6 +343,11 @@ function bindUI() {
   };
   $('pPos').value = pp.s;
   for (const id of ['pOn', 'pPos', 'pCars', 'pLevel', 'pRamp', 'pDepth', 'pSurf', 'pWall', 'pShowCars', 'pRail']) $(id).addEventListener('input', pUI);
+  $('pFit').onclick = () => {
+    if (!$('pOn').checked) $('pOn').checked = true;
+    pp.s = +$('pPos').value; pp.cars = +$('pCars').value; pp.depth = +$('pDepth').value;
+    parking.fitToTerrain(); syncParkInputs(); fitted = true; pUI();
+  };
   $('pView').onclick = () => {
     pp.on || ($('pOn').checked = true, pUI());
     const pl = parking.info.poly; if (!pl) return;
@@ -392,6 +404,7 @@ function applyShared(hash) {
       $('pPos').value = s; $('pCars').value = cars; $('pLevel').value = level; $('pRamp').value = ramp; $('pDepth').value = depth;
       if (SURFACES[surf]) $('pSurf').value = surf; if (WALLS[wall]) $('pWall').value = wall;
       $('pShowCars').checked = showCars !== '0';
+      fitted = true; // behold høydene fra lenken
       set('pOn', true);
     }
     const v = q.get('v');
