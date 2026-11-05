@@ -34,7 +34,8 @@ su.turbidity.value = 4; su.rayleigh.value = 1.2; su.mieCoefficient.value = 0.004
 scene.add(sky);
 const sun = new THREE.DirectionalLight(0xfff1dc, 3.2);
 sun.castShadow = true;
-sun.shadow.mapSize.set(4096, 4096);
+const TOUCH = matchMedia('(pointer: coarse)').matches;
+sun.shadow.mapSize.set(TOUCH ? 2048 : 4096, TOUCH ? 2048 : 4096);
 const SC = sun.shadow.camera;
 SC.left = -75; SC.right = 75; SC.top = 75; SC.bottom = -75; SC.near = 1; SC.far = 600;
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
@@ -353,8 +354,66 @@ function bindUI() {
     const a = document.createElement('a');
     a.download = `hytte-${state.variant}.png`; a.href = renderer.domElement.toDataURL('image/png'); a.click();
   };
+  $('share').onclick = share;
+  $('shareTop').onclick = share;
+  if (TOUCH) document.querySelector('[data-mode="walk"]').style.display = 'none';
   $('collapse').onclick = () => document.body.classList.toggle('panel-hidden');
   document.querySelectorAll('.sec h3').forEach((h) => h.onclick = () => h.parentElement.classList.toggle('closed'));
+}
+
+// ---------- deling via lenke ----------
+// Lenken inneholder alternativ, kamera, sol, materialer og parkering, slik at mottakeren ser det samme.
+const DOY0 = Date.UTC(2026, 0, 1);
+function encodeShared() {
+  const t = state.mode === 'walk' ? camera.position.clone().add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(10)) : orbit.target;
+  const p = camera.position, pp = parking.params, q = new URLSearchParams();
+  q.set('v', state.variant);
+  q.set('c', [p.x, p.y, p.z, t.x, t.y, t.z].map((n) => n.toFixed(1)).join('_'));
+  q.set('t', `${Math.round((Date.UTC(2026, state.month, state.day) - DOY0) / 864e5)}_${state.hour.toFixed(2)}`);
+  if (pp.on) q.set('p', [pp.s, pp.cars, pp.level, pp.ramp, pp.depth, pp.surface, pp.wall, pp.showCars ? 1 : 0].join('_'));
+  if (state.cladding !== 'dagens') q.set('k', state.cladding);
+  if (state.roof !== 'bolge') q.set('r', state.roof);
+  if (state.vertical) q.set('sk', '1');
+  if (!state.roofs) q.set('utentak', '1');
+  return q.toString();
+}
+function applyShared(hash) {
+  if (!hash) return;
+  const q = new URLSearchParams(hash);
+  const set = (id, val, ev = 'input') => { const el = $(id); if (el.type === 'checkbox') el.checked = !!val; else el.value = val; el.dispatchEvent(new Event(ev)); };
+  try {
+    if (q.has('k') && CLADDING[q.get('k')]) { $('clad').value = state.cladding = q.get('k'); }
+    if (q.has('r') && ROOFS[q.get('r')]) { $('roof').value = state.roof = q.get('r'); }
+    if (q.has('sk')) { $('vert').checked = state.vertical = true; }
+    if (q.has('t')) { const [d, h] = q.get('t').split('_'); $('date').value = d; set('time', h); }
+    if (q.has('utentak')) set('tRoofs', false, 'change');
+    if (q.has('p')) {
+      const [s, cars, level, ramp, depth, surf, wall, showCars] = q.get('p').split('_');
+      $('pPos').value = s; $('pCars').value = cars; $('pLevel').value = level; $('pRamp').value = ramp; $('pDepth').value = depth;
+      if (SURFACES[surf]) $('pSurf').value = surf; if (WALLS[wall]) $('pWall').value = wall;
+      $('pShowCars').checked = showCars !== '0';
+      set('pOn', true);
+    }
+    const v = q.get('v');
+    selectVariant(VARIANTS.some((x) => x.id === v) ? v : state.variant);
+    if (q.has('c')) {
+      const c = q.get('c').split('_').map(Number);
+      if (c.length === 6 && c.every(Number.isFinite)) { camera.position.set(c[0], c[1], c[2]); orbit.target.set(c[3], c[4], c[5]); orbit.update(); }
+    }
+  } catch (e) { console.warn('Kunne ikke lese delt lenke', e); }
+}
+function toast(msg) {
+  const el = $('toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 3500);
+}
+async function share() {
+  const url = location.href.split('#')[0] + '#' + encodeShared();
+  history.replaceState(null, '', url);
+  if (navigator.share && TOUCH) {
+    try { await navigator.share({ title: 'Hytta på Tjøme – 3D', text: 'Se hvordan hytta kan bli:', url }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(url); toast('Lenke kopiert – lim den inn i en melding eller e-post'); }
+  catch { prompt('Kopier lenken:', url); }
 }
 
 // ---------- løkke ----------
@@ -396,6 +455,8 @@ addEventListener('resize', () => {
 bindUI();
 selectVariant(state.variant);
 goView('oversikt', true);
+if (TOUCH || innerWidth < 800) document.body.classList.add('panel-hidden');
+applyShared(location.hash.slice(1));
 document.getElementById('loading').remove();
 frame();
-window.__hytte = { scene, camera, orbit, goView, selectVariant, state, parking, site, renderer, updateParkingUI };
+window.__hytte = { encodeShared, scene, camera, orbit, goView, selectVariant, state, parking, site, renderer, updateParkingUI };
