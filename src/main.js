@@ -10,7 +10,8 @@ import { buildNeighbours, buildWater } from './context.js';
 import { buildSite, VARIANTS } from './site.js';
 import { buildParking, SURFACES, WALLS } from './parking.js';
 import { buildRockDeck } from './rockdeck.js';
-import { DECK } from './site.js';
+import { DECK, DECK_Z } from './site.js';
+import { terrainEdits, pointInPoly } from './geo.js';
 import { CLADDING, ROOFS } from './kit.js';
 import { sunVector, sunTimes } from './sun.js';
 
@@ -245,8 +246,21 @@ function renderVariants() {
   document.querySelectorAll('.variant').forEach((b) => b.onclick = () => selectVariant(b.dataset.v));
 }
 
+// Dagens terrasse ligger i praksis på bakken; laserdata har stedvis bakke litt over dekket.
+// Når terrassen vises, senkes terrenget under den til like under dekket.
+const deckLocal = DECK.map(([x, y]) => fromFrame(x, y));
+const deckClamp = { poly: deckLocal, heightAt: (x, y, h) => (pointInPoly(x, y, deckLocal) ? Math.min(h, DECK_Z - 0.15) : null) };
+function setDeckClamp(on) {
+  const i = terrainEdits.indexOf(deckClamp);
+  if (on === (i >= 0)) return;
+  if (on) terrainEdits.push(deckClamp); else terrainEdits.splice(i, 1);
+  const xs = deckLocal.map((p) => p[0]), ys = deckLocal.map((p) => p[1]);
+  terrain.refresh(Math.min(...xs) - 1, Math.max(...xs) + 1, Math.min(...ys) - 1, Math.max(...ys) + 1);
+}
+
 function selectVariant(id) {
   state.variant = id;
+  setDeckClamp(VARIANTS.find((x) => x.id === id).keep.includes('deck'));
   const d = site.show(id);
   renderVariants();
   const v = d.v;

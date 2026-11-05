@@ -1,12 +1,12 @@
 // Terrasse oppå det lille berget mellom terrassekroken (spisebordet) og flaggstanga.
-// Berget er en flat knaus på ca. 14,6 moh. (laserdata), ca. 1,2 m over dagens terrasse.
+// Berget er en flat knaus på ca. 14,6 moh. (laserdata), ca. 1 m over dagens terrasse.
 // Alt i bygningsrammen (x' mot SSØ, y' mot ØNØ), se geo.js.
 import * as THREE from 'three';
 import { heightAt, naturalHeight, fromFrame } from './geo.js';
 import { makeMaterials, segBox, prism, Bag } from './kit.js';
-import { frameGroup } from './site.js';
+import { frameGroup, DECK_Z } from './site.js';
 
-const DECK_FLOOR = 13.27; // dagens terrasse
+const DECK_FLOOR = DECK_Z; // dagens terrasse
 export const ROCKDECK = { x0: 11.0, y1: -2.1 }; // kant mot dagens terrasse og kant mot plenen (øst)
 
 export function buildRockDeck(scene) {
