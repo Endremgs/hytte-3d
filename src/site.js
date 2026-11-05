@@ -5,7 +5,10 @@ import { AXIS_DEG, fromFrame, toFrame, heightAt, naturalHeight, polyArea } from 
 import { makeMaterials, volume, deck, stairs, pergola, segBox, Bag, P, prism } from './kit.js';
 import { flagTex } from './textures.js';
 
-const FLOOR = 13.3; // gulvhøyde dagens hytte (NN2000), anslått fra laserdata og bilder
+// Gulvhøyde dagens hytte (NN2000). Laserdata: bakken under terrassen mot vest ligger på ca. 13,6,
+// ved inngangen mot øst 12,4–12,75 (bildene viser ca. 0,9 m opp til døra der).
+export const FLOOR = 13.65;
+export const DECK_Z = FLOOR - 0.05; // dagens terrasse mot vest, nesten i flukt med dørene
 
 // Rammen: gruppe rotert slik at lokal X = x' (SSØ) og -Z = y' (ØNØ)
 export function frameGroup() {
@@ -218,22 +221,27 @@ function existingParts(m, mAnnex) {
       x0: [{ at: 1.8, w: 0.8, sill: 1.0, top: 2.0 }],
     },
   }, m));
-  // inngangsparti (trapp + plattform mot veien)
-  const porchPoly = [[-4.6, 1.4], [-3.35, 1.4], [-3.35, 2.55], [0.9, 2.55], [0.9, 4.3], [-4.6, 4.3]];
-  nGroup.add(deck(porchPoly, FLOOR - 0.5, m));
-  nGroup.add(stairs(-4.0, 1.9, 0, 0.01, FLOOR, 1.0, m));
+  // inngangsparti mot veien: lav terrasse foran nordfløyen (uten pipe), trapp opp til døra i hjørnet
+  const porchZ = FLOOR - 0.5;
+  const porchPoly = [[-8.6, 1.4], [-3.35, 1.4], [-3.35, 4.0], [-8.6, 4.0]];
+  nGroup.add(deck(porchPoly, porchZ, m));
+  nGroup.add(stairs(-5.6, 4.0, 0, 1, porchZ, 1.6, m)); // ned til plenen
   const pb = new Bag();
-  for (const [x, y] of [[-3.75, 1.5], [-3.75, 2.2]]) pb.add(m.deck, segBox(x - 0.3, y, x + 0.3, y, FLOOR - 0.5, FLOOR - 0.25 + (y - 1.5) * 0.2, 0.5));
-  furniture(pb, m, -0.6, 3.4, FLOOR - 0.5, 'round');
+  for (let i = 0; i < 3; i++) {
+    // tre trinn fra terrassen opp til døra (x' ≈ -3,95)
+    const y0 = 1.4 + i * 0.28, top = FLOOR + 0.1 - ((i + 1) * (FLOOR + 0.1 - porchZ)) / 4;
+    pb.add(m.deck, segBox(-4.5, y0 + 0.14, -3.4, y0 + 0.14, porchZ, top, 0.28));
+  }
+  furniture(pb, m, -6.6, 2.75, porchZ, 'round');
   // utedusj ved nordgavlen
   for (const [a, b] of [[[-10.1, 0.0], [-10.1, 1.3]], [[-10.1, 1.3], [-8.85, 1.3]]]) pb.add(m.deck, segBox(...a, ...b, heightAt(...fromFrame(-9.5, 0.6)), FLOOR + 1.0, 0.06));
   pb.build(nGroup);
   parts.north = nGroup;
 
   // Terrasse
-  const d = deck(DECK, FLOOR - 0.03, m);
+  const d = deck(DECK, DECK_Z, m);
   const fb = new Bag();
-  furniture(fb, m, 4.8, -4.3, FLOOR - 0.03, 'round');
+  furniture(fb, m, 4.8, -4.3, DECK_Z, 'round');
   fb.build(d);
   parts.deck = d;
 
