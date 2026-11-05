@@ -9,6 +9,8 @@ import { buildVegetation, windUniform } from './vegetation.js';
 import { buildNeighbours, buildWater } from './context.js';
 import { buildSite, VARIANTS } from './site.js';
 import { buildParking, SURFACES, WALLS } from './parking.js';
+import { buildRockDeck } from './rockdeck.js';
+import { DECK } from './site.js';
 import { CLADDING, ROOFS } from './kit.js';
 import { sunVector, sunTimes } from './sun.js';
 
@@ -144,9 +146,12 @@ const parking = buildParking(scene, (edit, old) => {
 parking.params.s = roadSOf(3.5);
 let fitted = false; // parkeringshøyde tilpasses terrenget første gang den slås på
 
+const rockDeck = buildRockDeck(scene);
+const DECK_AREA = Math.round(polyArea(DECK));
 function updateExclusions() {
   const polys = [...site.footprints()];
   if (parking.poly) polys.push(parking.poly);
+  if (rockDeck.info.poly) polys.push(rockDeck.info.poly);
   veg.setExclusions(polys);
   veg.grass.hideIn(polys);
 }
@@ -172,6 +177,8 @@ const VIEWS = {
   inngang: { name: 'Langs inngangssiden', cam: () => { const [x, y] = fromFrame(3.0, 6.0); return [x, y, heightAt(...fromFrame(3.0, 6.0)) + 1.65]; }, tgt: () => { const [x, y] = fromFrame(-14, 3.0); return [x, y, 13.8]; }, eye: true },
   veien: { name: 'Fra veien (nord)', cam: [17.5, 26, 10.3], tgt: [6, 0, 12.5], eye: true },
   jordet: { name: 'Fra jordet', cam: [62, -6, 9.6], tgt: [0, 0, 13.5], eye: true },
+  berget: { name: 'Fra terrassen på berget', cam: () => { const [x, y] = fromFrame(11.6, -4.7); return [x, y, 16.55]; }, tgt: () => { const [x, y] = fromFrame(20, 12); return [x, y, 12.5]; }, eye: true },
+  bergetSett: { name: 'Se på bergterrassen', cam: () => { const [x, y] = fromFrame(6, 9); return [x, y, 18.5]; }, tgt: () => { const [x, y] = fromFrame(13, -3.6); return [x, y, 14.6]; } },
   ovenfra: { name: 'Rett ovenfra (plan)', cam: [0.01, -0.5, 95], tgt: [0, 0, 12] },
 };
 let tween = null;
@@ -258,6 +265,22 @@ function selectVariant(id) {
   site.setGhosts(state.ghosts);
   $('roofsTip').style.display = v.detailed ? 'block' : 'none';
   updateExclusions();
+}
+
+function updateRockDeckUI() {
+  const i = rockDeck.rebuild();
+  updateExclusions();
+  const box = $('rdInfo');
+  if (!rockDeck.params.on) { box.innerHTML = ''; return; }
+  const ok = (c) => (c ? '<i class="ok">✓</i>' : '<i class="bad">!</i>');
+  const total = i.area + DECK_AREA;
+  box.innerHTML = `<table>
+    <tr><td>Areal ny terrasse</td><td>${i.area.toFixed(1)} m²</td><td></td></tr>
+    <tr><td>Sammen med dagens terrasse (ca. ${DECK_AREA} m²)</td><td>${total.toFixed(0)} m² ${ok(total <= 40)}</td><td class="lim">uteareal m/fast dekke maks 40 m²*</td></tr>
+    ${DECK_AREA > 40 ? `<tr><td colspan="3" class="lim">Dagens terrasse er alene over 40 m², så en ny terrasse må trolig avklares med kommunen (ev. dispensasjon) – eller kombineres med at dagens terrasse gjøres mindre.</td></tr>` : ''}
+    <tr><td>Høyde over dagens terrasse</td><td>${i.overDeck.toFixed(2)} m</td><td class="lim">${i.steps} trinn</td></tr>
+    <tr><td>Største fallhøyde</td><td>${i.maxDrop.toFixed(1)} m</td><td class="lim">${i.maxDrop > 0.5 ? 'rekkverk påkrevd (TEK17)' : ''}</td></tr>
+  </table><p class="note">*Bestemmelsen gjelder opparbeidede uteareal tilknyttet bebyggelsen. Terrassen ligger på stolper over berget uten terrenginngrep.</p>`;
 }
 
 function updateParkingUI() {
@@ -366,6 +389,19 @@ function bindUI() {
     const a = document.createElement('a');
     a.download = `hytte-${state.variant}.png`; a.href = renderer.domElement.toDataURL('image/png'); a.click();
   };
+  // terrasse på berget
+  const rp = rockDeck.params;
+  const rdUI = () => {
+    rp.on = $('rdOn').checked; rp.length = +$('rdLen').value; rp.depth = +$('rdDep').value;
+    rp.rail = $('rdRail').value; rp.furniture = $('rdFurn').value;
+    $('rdLenLbl').textContent = `${rp.length.toFixed(1)} m`; $('rdDepLbl').textContent = `${rp.depth.toFixed(1)} m`;
+    $('rdCtl').classList.toggle('dim', !rp.on);
+    updateRockDeckUI();
+  };
+  for (const id of ['rdOn', 'rdLen', 'rdDep', 'rdRail', 'rdFurn']) $(id).addEventListener('input', rdUI);
+  $('rdView').onclick = () => { if (!$('rdOn').checked) { $('rdOn').checked = true; rdUI(); } goView('bergetSett'); };
+  $('rdSit').onclick = () => { if (!$('rdOn').checked) { $('rdOn').checked = true; rdUI(); } goView('berget'); };
+  rdUI();
   $('share').onclick = share;
   $('shareTop').onclick = share;
   if (TOUCH) document.querySelector('[data-mode="walk"]').style.display = 'none';
@@ -387,6 +423,8 @@ function encodeShared() {
   if (state.roof !== 'bolge') q.set('r', state.roof);
   if (state.vertical) q.set('sk', '1');
   if (!state.roofs) q.set('utentak', '1');
+  const rp = rockDeck.params;
+  if (rp.on) q.set('bt', [rp.length, rp.depth, rp.rail, rp.furniture].join('_'));
   return q.toString();
 }
 function applyShared(hash) {
@@ -399,6 +437,13 @@ function applyShared(hash) {
     if (q.has('sk')) { $('vert').checked = state.vertical = true; }
     if (q.has('t')) { const [d, h] = q.get('t').split('_'); $('date').value = d; set('time', h); }
     if (q.has('utentak')) set('tRoofs', false, 'change');
+    if (q.has('bt')) {
+      const [len, dep, rail, furn] = q.get('bt').split('_');
+      $('rdLen').value = len; $('rdDep').value = dep;
+      if (['tre', 'glass', 'ingen'].includes(rail)) $('rdRail').value = rail;
+      if (['spise', 'lounge', 'begge', 'ingen'].includes(furn)) $('rdFurn').value = furn;
+      set('rdOn', true);
+    }
     if (q.has('p')) {
       const [s, cars, level, ramp, depth, surf, wall, showCars] = q.get('p').split('_');
       $('pPos').value = s; $('pCars').value = cars; $('pLevel').value = level; $('pRamp').value = ramp; $('pDepth').value = depth;
