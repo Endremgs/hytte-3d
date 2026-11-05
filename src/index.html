@@ -127,6 +127,23 @@
   </div>
 
   <div class="sec">
+    <h3>Terrasse på berget</h3>
+    <div id="rdCtl">
+      <label class="row keep"><input type="checkbox" id="rdOn" /> Vis terrasse på berget ved flaggstanga</label>
+      <div class="lbl"><span>Lengde (mot flaggstanga)</span><span id="rdLenLbl"></span></div>
+      <input type="range" id="rdLen" min="3" max="7" step="0.25" value="5.5" />
+      <div class="lbl"><span>Bredde (inn mot berget)</span><span id="rdDepLbl"></span></div>
+      <input type="range" id="rdDep" min="2.5" max="4.5" step="0.25" value="3.0" />
+      <div class="grid2">
+        <div><div class="lbl"><span>Rekkverk</span></div><select id="rdRail"><option value="tre">Tre</option><option value="glass">Glass</option><option value="ingen">Ingen</option></select></div>
+        <div><div class="lbl"><span>Møbler</span></div><select id="rdFurn"><option value="spise">Spisebord</option><option value="lounge">Solsenger</option><option value="begge">Begge</option><option value="ingen">Ingen</option></select></div>
+      </div>
+      <div class="btns keep" style="margin-top:6px"><button id="rdView">Se på terrassen</button><button id="rdSit">Sitt på terrassen</button></div>
+    </div>
+    <div id="rdInfo"></div>
+  </div>
+
+  <div class="sec">
     <h3>Materialer (nye/endrede bygg)</h3>
     <div class="lbl"><span>Kledning</span></div><select id="clad"></select>
     <label class="row"><input type="checkbox" id="vert" /> Stående kledning</label>

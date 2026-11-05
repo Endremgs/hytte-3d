@@ -172,7 +172,7 @@ function flagpole(x, y) {
 // Mål fra situasjonsplan A10-03 (takfot) og bilder.
 const SOUTH = { x0: -3.35, x1: 4.6, y0: -2.22, y1: 2.55 };
 const NORTH = { x0: -8.8, x1: -3.35, y0: -2.22, y1: 1.4 };
-const DECK = [[-3.28, -4.86], [-3.28, -2.3], [7.53, -2.3], [7.57, 2.33], [9.41, 1.63], [8.91, -3.26], [7.73, -5.86], [3.33, -6.08], [1.59, -4.81]];
+export const DECK = [[-3.28, -4.86], [-3.28, -2.3], [7.53, -2.3], [7.57, 2.33], [9.41, 1.63], [8.91, -3.26], [7.73, -5.86], [3.33, -6.08], [1.59, -4.81]];
 // Anneks «Robua»
 const ANNEX_C = [-11.2, 13.6], ANNEX_ANG = Math.atan2(0.309, 0.951);
 function annexToLocal(xa, ya) {
