@@ -2,12 +2,13 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { Sky } from 'three/addons/objects/Sky.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import parcels from '../data/parcels.json';
 import { heightAt, naturalHeight, fromFrame, OAK, roadSOf, polyArea } from './geo.js';
 import { buildTerrain, drapeLine, drapeDisk, terrainUniforms, planTexture } from './terrain.js';
 import { buildVegetation, windUniform } from './vegetation.js';
 import { buildNeighbours, buildWater } from './context.js';
-import { buildSite, VARIANTS } from './site.js';
+import { buildSite, ALL as VARIANTS } from './site.js';
 import { buildParking, SURFACES, WALLS } from './parking.js';
 import { buildRockDeck } from './rockdeck.js';
 import { DECK, DECK_Z } from './site.js';
@@ -15,6 +16,8 @@ import { terrainEdits, pointInPoly } from './geo.js';
 import { CLADDING, ROOFS } from './kit.js';
 import { sunVector, sunTimes } from './sun.js';
 
+// Fotorealistiske bilder per alternativ (settes inn av build.mjs fra public/renders/index.json)
+const RENDERS = typeof __RENDERS__ !== 'undefined' ? __RENDERS__ : {};
 const app = document.getElementById('app');
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -83,7 +86,7 @@ const compass = (a) => ['N', 'NØ', 'Ø', 'SØ', 'S', 'SV', 'V', 'NV'][Math.roun
 // ---------- verden ----------
 const terrain = buildTerrain(scene);
 const veg = buildVegetation(scene);
-buildNeighbours(scene);
+const neighbours = buildNeighbours(scene);
 const water = buildWater(scene);
 const site = buildSite(scene, state);
 
@@ -241,8 +244,9 @@ const $ = (id) => document.getElementById(id);
 function opt(sel, obj, cur) { sel.innerHTML = Object.entries(obj).map(([k, v]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${v.name}</option>`).join(''); }
 
 function renderVariants() {
-  $('variants').innerHTML = VARIANTS.map((v) => `<button class="variant ${v.id === state.variant ? 'on' : ''}" data-v="${v.id}">
-      <b>${v.name}</b><span>${v.bya ? `BYA ${v.bya.toLocaleString('nb-NO')} m²` : 'BYA ikke oppgitt'}</span></button>`).join('');
+  const firstIdea = VARIANTS.find((v) => v.idea);
+  $('variants').innerHTML = VARIANTS.map((v) => `${v === firstIdea ? '<div class="ideas">Nye ideer – skisser fra 3D-studien, ikke vurdert av arkitekt</div>' : ''}<button class="variant ${v.idea ? 'idea ' : ''}${v.id === state.variant ? 'on' : ''}" data-v="${v.id}">
+      <b>${v.name}</b><span>${v.bya ? `BYA ${v.bya.toLocaleString('nb-NO')} m²` : v.idea ? 'BYA målt i modellen' : 'BYA ikke oppgitt'}</span></button>`).join('');
   document.querySelectorAll('.variant').forEach((b) => b.onclick = () => selectVariant(b.dataset.v));
 }
 
@@ -268,16 +272,17 @@ function selectVariant(id) {
   const bya = v.bya ?? Math.round(d.area / 5) * 5;
   $('variantInfo').innerHTML = `<p>${v.desc}</p>
     <table>
-      <tr><td>BYA ${v.bya ? '(arkitekt)' : '(ca., målt i modellen)'}</td><td>${bya.toLocaleString('nb-NO')} m² ${ok(bya <= 130)}</td><td class="lim">maks 130 m²</td></tr>
+      <tr><td>BYA ${v.bya ? '(arkitekt)' : '(ca., målt i modellen inkl. takutstikk)'}</td><td>${bya.toLocaleString('nb-NO')} m² ${ok(bya <= 130)}</td><td class="lim">maks 130 m²</td></tr>
       <tr><td>Lengste fasade</td><td>${d.maxFacade.toFixed(1)} m ${ok(d.maxFacade < 15)}</td><td class="lim">under 15 m</td></tr>
       <tr><td>Mønehøyde (snitt terreng)</td><td>${d.maxRidge.toFixed(1)} m ${ok(d.maxRidge < 6.5)}</td><td class="lim">under 6,5 m</td></tr>
       <tr><td>Gesimshøyde (snitt terreng)</td><td>${d.maxEave.toFixed(1)} m ${ok(d.maxEave < 4.0)}</td><td class="lim">under 4,0 m</td></tr>
     </table>
-    <p class="note">Høyder er beregnet i modellen fra laserdata og antatte gulvhøyder – kun veiledende.</p>`;
+    <p class="note">Høyder er beregnet i modellen fra laserdata og antatte gulvhøyder – kun veiledende.</p>
+    ${RENDERS[v.id] ? `<div class="thumbs">${RENDERS[v.id].map((im) => `<a href="galleri.html#${v.id}" title="${im.title} – fotorealistisk"><img src="renders/thumbs/${im.file}" alt="${im.title}" onerror="this.parentNode.remove()" /></a>`).join('')}</div>` : ''}`;
   if (v.plan) terrainUniforms.tPlan.value = planTexture(v.plan);
   site.setRoofs(state.roofs);
   site.setGhosts(state.ghosts);
-  $('roofsTip').style.display = v.detailed ? 'block' : 'none';
+  $('roofsTip').style.display = v.detailed || v.idea ? 'block' : 'none';
   updateExclusions();
 }
 
@@ -531,4 +536,36 @@ if (TOUCH || innerWidth < 800) document.body.classList.add('panel-hidden');
 applyShared(location.hash.slice(1));
 document.getElementById('loading').remove();
 frame();
-window.__hytte = { encodeShared, scene, camera, orbit, goView, selectVariant, state, parking, site, renderer, updateParkingUI };
+// ---------- eksport til fotorealistisk rendering (tools/render) ----------
+// Gir bygg, terreng og naboer som GLB + trær, sol og utsiktspunkter som JSON. Blender bytter materialer etter navn.
+async function exportForRender({ month = state.month, day = state.day, hour = state.hour } = {}) {
+  site.setGhosts(false);
+  const objs = [terrain.mesh, terrain.far, terrain.horizon, neighbours, site.root, parking.group, rockDeck.root].filter((o) => o.visible);
+  // grunnfargen følger med som extras (glTF legger den ellers inn i en teksturmiks)
+  for (const o of objs) o.traverse((m) => { for (const mat of [m.material].flat()) if (mat?.color) mat.userData.hex = mat.color.getHex(); });
+  const glb = await new GLTFExporter().parseAsync(objs, { binary: true, onlyVisible: true });
+  site.setGhosts(state.ghosts);
+  const bytes = new Uint8Array(glb);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  const m4 = new THREE.Matrix4();
+  const trees = veg.items.map((it) => {
+    it.mesh.getMatrixAt(it.index, m4);
+    if (m4.elements[0] === 0 && m4.elements[5] === 0) return null;
+    return [+it.x.toFixed(2), +it.y.toFixed(2), +heightAt(it.x, it.y).toFixed(2), +it.h.toFixed(2), +it.r.toFixed(2), it.type, it.shrub ? 1 : 0];
+  }).filter(Boolean);
+  const views = {};
+  for (const [k, v] of Object.entries(VIEWS)) views[k] = { cam: typeof v.cam === 'function' ? v.cam() : v.cam, tgt: typeof v.tgt === 'function' ? v.tgt() : v.tgt };
+  const sv = sunVector(month, day, hour);
+  const v = VARIANTS.find((x) => x.id === state.variant);
+  return {
+    glb: btoa(bin),
+    meta: {
+      variant: v.id, name: v.name, desc: v.desc, trees, views,
+      sun: { dir: [sv.x, -sv.z, sv.y], elevation: sv.elevation, azimuth: sv.azimuth, month, day, hour },
+      cladding: state.cladding, roof: state.roof, vertical: state.vertical,
+    },
+  };
+}
+
+window.__hytte = { exportForRender, encodeShared, scene, camera, orbit, goView, selectVariant, state, parking, site, renderer, updateParkingUI };

@@ -49,6 +49,14 @@ export function makeMaterials(cladKey = 'dagens', roofKey = 'bolge', vertical = 
   m.floor = new THREE.MeshStandardMaterial({ color: 0xc9a77c, roughness: 0.7 });
   m.inner = new THREE.MeshStandardMaterial({ color: 0xf3f0ea, roughness: 0.9 });
   m.door = new THREE.MeshStandardMaterial({ color: 0xf3f3ef, roughness: 0.6 });
+  nameMaterials(m);
+  m.clad.userData.cladding = cladKey; m.clad.userData.vertical = vertical;
+  return m;
+}
+
+// Navn følger med i glTF-eksporten slik at fotorealistisk rendering (tools/render) kan bytte materialer
+export function nameMaterials(m) {
+  for (const [k, v] of Object.entries(m)) if (v?.isMaterial) v.name = k;
   return m;
 }
 
@@ -92,6 +100,37 @@ function gableTri(ax, ay, bx, by, zBase, zTop, thick) {
   g.translate(0, 0, -thick / 2);
   g.rotateY(Math.atan2(by - ay, bx - ax));
   g.translate(ax, zBase, -ay);
+  return g;
+}
+
+// Trapes i et vertikalt plan (gavl under pulttak): bunn zBase, topp zA ved a og zB ved b
+function slopedWall(ax, ay, bx, by, zBase, zA, zB, thick) {
+  const L = Math.hypot(bx - ax, by - ay);
+  const shape = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(L, 0), new THREE.Vector2(L, zB - zBase), new THREE.Vector2(0, zA - zBase)]);
+  const g = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled: false });
+  g.translate(0, 0, -thick / 2);
+  g.rotateY(Math.atan2(by - ay, bx - ax));
+  g.translate(ax, zBase, -ay);
+  return g;
+}
+
+// Skrå plate (pulttak) gitt fire hjørner i rammen [x, y, z] på oversiden; u langs a->b i meter
+function slab(c, th) {
+  const top = c.map(([x, y, z]) => P(x, y, z));
+  const bot = c.map(([x, y, z]) => P(x, y, z - th));
+  const L = Math.hypot(c[1][0] - c[0][0], c[1][1] - c[0][1]);
+  const W = Math.hypot(c[3][0] - c[0][0], c[3][1] - c[0][1], c[3][2] - c[0][2]);
+  const pos = [], uv = [];
+  const quad = (a, b, cc, d, ua = [0, 0], ub = [L, 0], uc = [L, W], ud = [0, W]) => {
+    for (const [v, t] of [[a, ua], [b, ub], [cc, uc], [a, ua], [cc, uc], [d, ud]]) { pos.push(...v.toArray()); uv.push(...t); }
+  };
+  quad(top[0], top[1], top[2], top[3]);
+  quad(bot[0], bot[3], bot[2], bot[1]);
+  for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; quad(bot[i], bot[j], top[j], top[i], [0, 0], [1, 0], [1, th], [0, th]); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
   return g;
 }
 
@@ -238,9 +277,21 @@ export function volume(def, m) {
     y1: { ax: x1, ay: y1, bx: x0, by: y1, nx: 0, ny: 1 },
     x0: { ax: x0, ay: y1, bx: x0, by: y0, nx: -1, ny: 0 },
   };
+  // pulttak: høy side får høyere vegg, sideveggene får skrå topp
+  const shed = def.roof?.type === 'shed';
+  const hi = def.roof?.high ?? 'y0';
+  const span = hi[0] === 'y' ? y1 - y0 : x1 - x0;
+  const zHi = shed ? zE + span * Math.tan(((def.roof.pitch ?? 8) * Math.PI) / 180) : zE;
+  const lo = { x0: 'x1', x1: 'x0', y0: 'y1', y1: 'y0' }[hi];
   for (const k of Object.keys(sides)) {
     if (def.open?.includes(k)) continue;
-    wallWithOpenings(bag, m, sides[k], floor, zE, def.openings?.[k] || []);
+    wallWithOpenings(bag, m, sides[k], floor, shed && k === hi ? zHi : zE, def.openings?.[k] || []);
+    if (shed && k !== hi && k !== lo) {
+      const sd = sides[k];
+      // høyde i hvert endepunkt avhenger av avstanden fra lav side
+      const zAt = (x, y) => { const d = { x0: x - x0, x1: x1 - x, y0: y - y0, y1: y1 - y }[lo]; return zE + (d / span) * (zHi - zE); };
+      bag.add(m.clad, slopedWall(sd.ax, sd.ay, sd.bx, sd.by, zE, zAt(sd.ax, sd.ay), zAt(sd.bx, sd.by), 0.22));
+    }
   }
   // gulv
   bag.add(m.floor, segBox(x0, (y0 + y1) / 2, x1, (y0 + y1) / 2, floor - 0.25, floor + 0.02, y1 - y0));
@@ -262,18 +313,32 @@ export function volume(def, m) {
       bag.add(m.clad, gableTri(x1, y1, x0, y1, zE, roofInfo.zRidge, 0.22));
     }
   } else if (def.roof.type === 'flat') {
-    const ov = def.roof.overhang ?? 0.3;
-    roofBag.add(m.roof, segBox(x0 - ov, (y0 + y1) / 2, x1 + ov, (y0 + y1) / 2, zE, zE + 0.3, y1 - y0 + 2 * ov));
-    roofInfo = { zRidge: zE + 0.3 };
+    // flatt tak: beslag/gesimskasse rundt og taktekking (f.eks. sedum) på toppen
+    const ov = def.roof.overhang ?? 0.3, t = def.roof.thick ?? 0.32, my = (y0 + y1) / 2;
+    roofBag.add(m.roofEdge, segBox(x0 - ov, my, x1 + ov, my, zE, zE + t, y1 - y0 + 2 * ov));
+    roofBag.add(m.roof, segBox(x0 - ov + 0.08, my, x1 + ov - 0.08, my, zE + t, zE + t + 0.07, y1 - y0 + 2 * ov - 0.16));
+    roofInfo = { zRidge: zE + t + 0.07 };
+  } else if (shed) {
+    const ov = def.roof.overhang ?? 0.4, th = 0.16, tp = (zHi - zE) / span;
+    // hjørner: lav side -> høy side, utvidet med takutstikk (stiger videre ut over høy side)
+    const e = { x0: x0 - ov, x1: x1 + ov, y0: y0 - ov, y1: y1 + ov };
+    const zLo = zE + 0.12 - ov * tp, zTop = zHi + 0.12 + ov * tp;
+    const c = hi[0] === 'y'
+      ? [[e.x0, e[lo], zLo], [e.x1, e[lo], zLo], [e.x1, e[hi], zTop], [e.x0, e[hi], zTop]]
+      : [[e[lo], e.y0, zLo], [e[lo], e.y1, zLo], [e[hi], e.y1, zTop], [e[hi], e.y0, zTop]];
+    roofBag.add(m.roofEdge, slab(c.map(([x, y, z]) => [x, y, z - 0.04]), 0.3));
+    roofBag.add(m.roof, slab(c, th - 0.1));
+    roofInfo = { zRidge: zTop };
   }
   // sokkel / grunnmur ned til terreng
-  if (def.plinth !== 'none') plinth(bag, def.plinth === 'lattice' ? m.lattice : m.found, [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], floor - 0.25, def.frameToLocal);
+  if (def.plinth === 'posts') posts(bag, m.dark || m.found, [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], floor - 0.25, def.frameToLocal);
+  else if (def.plinth !== 'none') plinth(bag, def.plinth === 'lattice' ? m.lattice : m.found, [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], floor - 0.25, def.frameToLocal);
   bag.build(group, { tag: 'body' });
   const roofGroup = new THREE.Group();
   roofBag.build(roofGroup, { tag: 'roof' });
   roofGroup.userData.isRoof = true;
   group.add(roofGroup);
-  group.userData = { zRidge: roofInfo.zRidge, floor, rect: [x0, y0, x1, y1] };
+  group.userData = { zRidge: roofInfo.zRidge, zEave: Math.max(zE, zHi), floor, rect: [x0, y0, x1, y1], ignoreHeight: !!def.ignoreHeight };
   return group;
 }
 
@@ -289,6 +354,21 @@ export function plinth(bag, mat, poly, zTop, frameToLocal = fromFrame) {
       const zb = Math.min(g0, g1) - 0.3;
       if (zTop - zb > 0.05) bag.add(mat, segBox(px0, py0, px1, py1, zb, zTop, 0.08, 1 / 0.6));
     }
+  }
+}
+
+// Stålsøyler ned til berget (bygg som «svever» over terrenget) og en bærebjelke rundt
+export function posts(bag, mat, poly, zTop, frameToLocal = fromFrame) {
+  for (let i = 0; i < poly.length; i++) {
+    const [ax, ay] = poly[i], [bx, by] = poly[(i + 1) % poly.length];
+    const L = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.ceil(L / 2.4));
+    for (let k = 0; k < n; k++) {
+      const px = ax + ((bx - ax) * k) / n, py = ay + ((by - ay) * k) / n;
+      const ux = (bx - ax) / L, uy = (by - ay) / L, ix = -uy * 0.25, iy = ux * 0.25;
+      const g = heightAt(...frameToLocal(px + ux * 0.25 + ix, py + uy * 0.25 + iy));
+      bag.add(mat, segBox(px + ux * 0.2 + ix, py + uy * 0.2 + iy, px + ux * 0.32 + ix, py + uy * 0.32 + iy, g - 0.1, zTop, 0.12));
+    }
+    bag.add(mat, segBox(ax, ay, bx, by, zTop - 0.22, zTop, 0.16));
   }
 }
 

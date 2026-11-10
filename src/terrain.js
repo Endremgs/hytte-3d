@@ -180,6 +180,7 @@ export function buildTerrain(scene) {
   const m2 = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.97 });
   patchShader(m2, false);
   const far = new THREE.Mesh(g2, m2);
+  far.name = 'terrain_far';
   far.receiveShadow = true;
   scene.add(far);
 
@@ -204,7 +205,9 @@ export function buildTerrain(scene) {
   g4.computeVertexNormals();
   const m4 = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
   patchShader(m4, false, true);
-  scene.add(new THREE.Mesh(g4, m4));
+  const horizon = new THREE.Mesh(g4, m4);
+  horizon.name = 'terrain_horizon';
+  scene.add(horizon);
   const ring = new THREE.Mesh(new THREE.RingGeometry(1900, 9000, 64, 1).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x1b3946 }));
   ring.position.y = -1.5;
   scene.add(ring);
@@ -220,7 +223,7 @@ export function buildTerrain(scene) {
     geo.attributes.position.needsUpdate = true;
     geo.computeVertexNormals();
   }
-  return { mesh: inner, far, refresh };
+  return { mesh: inner, far, horizon, refresh };
 }
 
 // Linje draperet på terrenget

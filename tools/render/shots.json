@@ -1,0 +1,94 @@
+{
+  "_doc": "Kameravinkler for fotorealistiske bilder. Koordinater lokalt: [x øst, y nord, moh.]. month er 0-basert (6 = juli), hour er lokal tid. per_variant overstyrer enkelte alternativer.",
+  "sets": {
+    "default": [
+      "oversikt",
+      "knaus",
+      "plen"
+    ],
+    "N3": [
+      "oversikt",
+      "paviljong",
+      "utsikt"
+    ]
+  },
+  "shots": {
+    "oversikt": {
+      "title": "Fra lufta",
+      "cam": [
+        34,
+        -30,
+        31
+      ],
+      "tgt": [
+        -4,
+        3,
+        12.5
+      ],
+      "lens": 30,
+      "hour": 14.5,
+      "clear_radius": 28
+    },
+    "knaus": {
+      "title": "Fra knausen i sørvest",
+      "cam": [
+        -6.5,
+        -14,
+        19.0
+      ],
+      "tgt": [
+        -1,
+        5,
+        13.6
+      ],
+      "lens": 24,
+      "hour": 17.0
+    },
+    "plen": {
+      "title": "Fra plenen",
+      "cam": [
+        13,
+        -13,
+        13.9
+      ],
+      "tgt": [
+        -3,
+        14,
+        13.6
+      ],
+      "lens": 22,
+      "hour": 14.0
+    },
+    "paviljong": {
+      "title": "Opp mot paviljongen",
+      "cam": [
+        1.8,
+        -9.4,
+        15.4
+      ],
+      "tgt": [
+        -5.0,
+        -18.4,
+        18.6
+      ],
+      "lens": 24,
+      "hour": 11.0
+    },
+    "utsikt": {
+      "title": "Fra paviljongen",
+      "cam": [
+        -5.7,
+        -15.0,
+        19.4
+      ],
+      "tgt": [
+        0.5,
+        4.0,
+        13.8
+      ],
+      "lens": 24,
+      "hour": 19.5,
+      "clear_radius": 7
+    }
+  }
+}
