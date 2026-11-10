@@ -119,6 +119,8 @@ export function buildNeighbours(scene) {
   const rm = new THREE.Mesh(mergeGeometries(strip(roofs)), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide }));
   const gm = new THREE.Mesh(mergeGeometries(strip(gables)), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide }));
   for (const m of [wm, rm, gm]) { m.castShadow = true; m.receiveShadow = true; group.add(m); }
+  group.name = 'neighbours';
+  wm.material.name = 'nb_wall'; rm.material.name = 'nb_roof'; gm.material.name = 'nb_gable';
   scene.add(group);
   return group;
 }

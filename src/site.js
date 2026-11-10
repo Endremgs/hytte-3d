@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import walls from '../data/walls.json';
 import { AXIS_DEG, fromFrame, toFrame, heightAt, naturalHeight, polyArea } from './geo.js';
-import { makeMaterials, volume, deck, stairs, pergola, segBox, Bag, P, prism } from './kit.js';
+import { makeMaterials, nameMaterials, volume, deck, stairs, pergola, segBox, Bag, P, prism } from './kit.js';
 import { flagTex } from './textures.js';
 
 // Gulvhøyde dagens hytte (NN2000). Laserdata: bakken under terrassen mot vest ligger på ca. 13,6,
@@ -114,6 +114,8 @@ function label(text, sub) {
   s.renderOrder = 10;
   return s;
 }
+function EXT_SOUTH() { return rectPoly(-3.75, -2.62, 7.55, 2.95); }
+function EXT_NORTH() { return rectPoly(-9.21, -2.62, -3.75, 1.81); }
 const fromPx = (u, v) => [7.16 - (1300 - u) / 43.3, 2.58 + (540 - v) / 43.3];
 
 // ---------- småting ----------
@@ -399,9 +401,185 @@ export const VARIANTS = [
   },
 ];
 
+// ---------- nye ideer (skisser fra 3D-studien, ikke vurdert av arkitekt) ----------
+// Alle mål i rammen (x' mot SSØ langs hytta, y' mot ØNØ/veien). Romnavn: [tekst, areal, x', y'].
+const roomLabels = (rows) => rows.map(([t, s, x, y]) => ({ t, s, p: [x, y], frame: true }));
+const wallX = (x, y0, y1) => [x - 0.05, y0, x + 0.05, y1]; // innervegg på tvers
+const wallY = (y, x0, x1) => [x0, y - 0.05, x1, y + 0.05]; // innervegg på langs
+
+function steps(bag, m, x0, x1, yFrom, dir, zFrom, zTo, tread = 0.28, open = false) {
+  // rett trapp langs y' fra (x0..x1, yFrom) i retning dir, fra zFrom til zTo.
+  // open: frittstående trinn på stålvanger/stolper (lang trapp opp på berget)
+  const n = Math.max(1, Math.round(Math.abs(zTo - zFrom) / 0.18)), rise = (zTo - zFrom) / n;
+  for (let i = 0; i < n; i++) {
+    const y = yFrom + dir * (i + 0.5) * tread, top = zFrom + rise * (i + 1);
+    if (!open) { bag.add(m.deck, segBox(x0, y, x1, y, Math.min(zFrom, zTo) - 0.3, top, tread)); continue; }
+    bag.add(m.deck, segBox(x0, y, x1, y, top - 0.05, top, tread));
+    for (const x of [x0 + 0.05, x1 - 0.05]) {
+      bag.add(m.dark, segBox(x - 0.03, y, x + 0.03, y, top - 0.25, top - 0.05, tread + 0.02)); // vange
+      if (i % 3 === 1) bag.add(m.dark, segBox(x - 0.04, y, x + 0.04, y, heightAt(...fromFrame(x, y)) - 0.1, top - 0.2, 0.08));
+    }
+  }
+}
+
+export const IDEAS = [
+  {
+    id: 'N1', name: 'Idé 1 – Sovehems i ny nordfløy', plan: 'eks', bya: null, idea: true,
+    desc: 'Nordfløyen og annekset erstattes av en 1½-etasjes fløy med bratt saltak (38°) og takarker. Tre soverom og bad på bakkeplan, sovehems/loft over. Gir mest mulig soveplass uten å øke fotavtrykket mye – plenen og utsikten beholdes, og fløyen trappes 35 cm ned etter terrenget.',
+    keep: ['south', 'deck', 'bod', 'canoe'],
+    build: (m) => {
+      const g = new THREE.Group();
+      const fl = FLOOR - 0.35, x0 = -11.0, x1 = -3.35, y0 = -2.22, y1 = 2.8, wh = 3.0;
+      g.add(volume({ x0, x1, y0, y1, floor: fl, wallH: wh, roof: { axis: 'x', pitch: 38, overhang: 0.4 }, plinth: 'concrete',
+        interior: [wallY(0.3, x0 + 0.1, x1 - 0.1), wallX(-7.2, y0 + 0.1, 0.3), wallX(-8.0, 0.3, y1 - 0.1), wallX(-5.5, 0.3, y1 - 0.1)],
+        openings: {
+          y0: [{ at: 1.9, w: 1.4, sill: 0.8, top: 2.3 }, { at: 4.4, w: 2.0, sill: 0.05, top: 2.3, kind: 'slide' }, { at: 6.6, w: 1.0, sill: 0.9, top: 2.2 }],
+          y1: [{ at: 1.4, w: 0.7, sill: 1.2, top: 2.1 }, { at: 3.5, w: 1.0, sill: 0.05, top: 2.15, kind: 'door' }, { at: 5.9, w: 1.4, sill: 0.8, top: 2.3 }],
+          x0: [{ at: 1.3, w: 1.1, sill: 0.8, top: 2.3 }, { at: 3.7, w: 1.1, sill: 0.8, top: 2.3 }],
+        } }, m));
+      // takarker mot vest (utsikt) og øst – gir ståhøyde på hemsen
+      const zE = fl + wh;
+      g.add(volume({ x0: -9.2, x1: -6.0, y0: y0 + 0.55, y1: y0 + 2.45, floor: zE, wallH: 1.75, plinth: 'none', ignoreHeight: true,
+        roof: { type: 'flat', overhang: 0.12, thick: 0.18 }, openings: { y0: [{ at: 1.6, w: 2.4, sill: 0.5, top: 1.55 }] } }, m));
+      g.add(volume({ x0: -8.6, x1: -6.4, y0: y1 - 2.45, y1: y1 - 0.55, floor: zE, wallH: 1.75, plinth: 'none', ignoreHeight: true,
+        roof: { type: 'flat', overhang: 0.12, thick: 0.18 }, openings: { y1: [{ at: 1.1, w: 1.4, sill: 0.6, top: 1.5 }] } }, m));
+      const b = new Bag();
+      steps(b, m, -6.8, -5.4, y1, 1, fl - 0.05, heightAt(...fromFrame(-6.1, y1 + 1.6)) + 0.05);
+      b.add(m.deck, segBox(-7.2, y1 + 0.5, -5.0, y1 + 0.5, fl - 0.4, fl - 0.03, 1.0)); // trappeavsats
+      b.build(g);
+      g.userData.labels = roomLabels([['Sov 1', '8,5 m²', -9.1, -1.0], ['Sov 2', '9,3 m²', -5.3, -1.0], ['Sov 3', '7,3 m²', -9.5, 1.6],
+        ['Trapp/gang', '', -6.75, 1.6], ['Bad', '4,6 m²', -4.4, 1.6], ['Hems over', 'ca. 20 m²', -7.6, -0.1]]);
+      return g;
+    },
+    footprints: [EXT_SOUTH(), rectPoly(-11.4, -2.62, -3.35, 3.2)],
+  },
+  {
+    id: 'N2', name: 'Idé 2 – Le-vinkel med sommerstue', plan: 'eks', bya: null, idea: true,
+    desc: 'Hele dagens hytte beholdes. Annekset rives, og en ny fløy på tvers bygges vestover fra nordenden. Den danner en vinkel som gir le for nordavinden på terrassen, og en sommerstue med glassgavl mot utsikten og kveldssola. Pergola over hjørnet av terrassen.',
+    keep: ['south', 'north', 'deck', 'bod', 'canoe'],
+    build: (m) => {
+      const g = new THREE.Group();
+      const fl = FLOOR + 0.1, x0 = -9.2, x1 = -4.8, y0 = -8.4, y1 = -2.22;
+      g.add(volume({ x0, x1, y0, y1, floor: fl, wallH: 2.45, roof: { axis: 'y', pitch: 25, overhang: 0.4 }, plinth: 'concrete',
+        interior: [wallY(-5.3, x0 + 0.1, x1 - 0.1), wallX(-7.0, -5.25, y1 - 0.1)],
+        openings: {
+          y0: [{ at: 1.2, w: 1.0, sill: 0.05, top: 2.25, kind: 'slide' }, { at: 2.75, w: 1.8, sill: 0.05, top: 2.25, kind: 'slide' }],
+          x1: [{ at: 1.4, w: 2.2, sill: 0.05, top: 2.25, kind: 'slide' }, { at: 3.5, w: 1.2, sill: 0.05, top: 2.25, kind: 'slide' }, { at: 5.0, w: 0.9, sill: 0.05, top: 2.1, kind: 'door' }],
+          x0: [{ at: 1.6, w: 0.9, sill: 0.9, top: 2.1 }, { at: 4.6, w: 1.0, sill: 0.9, top: 2.1 }],
+        } }, m));
+      g.add(deck(rectPoly(-4.8, -6.6, -3.28, -2.22), DECK_Z, m));
+      g.add(pergola(-4.8, -0.6, -6.0, -2.4, DECK_Z + 2.5, m, true));
+      const b = new Bag();
+      furniture(b, m, -2.6, -4.3, DECK_Z, 'table');
+      b.build(g);
+      g.userData.labels = roomLabels([['Sommerstue', '13,5 m²', -7.0, -6.9], ['Sov', '6,2 m²', -8.1, -3.8], ['Gang/bod', '', -5.9, -3.8], ['Terrasse i le', '', -2.0, -4.5]]);
+      return g;
+    },
+    footprints: [EXT_SOUTH(), EXT_NORTH(), rectPoly(-9.6, -8.8, -4.4, -2.22)],
+  },
+  {
+    id: 'N3', name: 'Idé 3 – Utsiktspaviljong på knausen', plan: 'eks', bya: null, idea: true,
+    desc: 'Dagens hytte beholdes, annekset rives. Øverst på den store knausen i sørvest (ca. 17,5 moh., 4 m over hytta) bygges en glasset paviljong på ca. 23 m² på stålsøyler, med grønt sedumtak som glir inn i landskapet. Herfra ser man ut over hele tomta og landskapet, og får sol til seint på kvelden. Trapp opp fra terrassen; ingen sprengning.',
+    keep: ['south', 'north', 'deck', 'bod', 'canoe'],
+    build: (m, mk) => {
+      const g = new THREE.Group();
+      const mp = mk('sort', 'torv', true, true);
+      const fl = 17.85, x0 = 12.8, x1 = 18.4, y0 = -13.0, y1 = -8.8;
+      g.add(volume({ x0, x1, y0, y1, floor: fl, wallH: 2.6, roof: { type: 'flat', overhang: 0.45, thick: 0.34 }, plinth: 'posts',
+        openings: {
+          x0: [{ at: 1.15, w: 1.9, sill: 0.05, top: 2.4, kind: 'slide' }, { at: 3.05, w: 1.9, sill: 0.05, top: 2.4, kind: 'slide' }],
+          y1: [{ at: 1.6, w: 2.6, sill: 0.05, top: 2.4, kind: 'slide' }, { at: 4.2, w: 1.0, sill: 0.05, top: 2.3, kind: 'slide' }],
+          y0: [{ at: 1.6, w: 2.4, sill: 0.05, top: 2.4, kind: 'slide' }, { at: 4.2, w: 1.2, sill: 0.8, top: 2.4 }],
+          x1: [{ at: 2.1, w: 1.0, sill: 0.9, top: 2.3 }],
+        } }, mp));
+      const b = new Bag();
+      // trapp fra berget ved terrassen (ca. 14,4) opp til døra
+      const zFoot = heightAt(...fromFrame(13.8, -3.4));
+      b.add(m.deck, segBox(13.5, -8.3, 14.9, -8.3, fl - 0.5, fl - 0.03, 1.0)); // repos
+      steps(b, m, 13.6, 14.8, -3.5, -1, zFoot, fl - 0.03, (8.3 - 0.5 - 3.5) / Math.max(1, Math.round((fl - zFoot) / 0.18)), true);
+      furniture(b, m, 15.6, -10.9, fl, 'table');
+      b.build(g);
+      g.userData.labels = roomLabels([['Paviljong', '23,5 m²', 15.6, -10.9]]);
+      return g;
+    },
+    footprints: [EXT_SOUTH(), EXT_NORTH(), rectPoly(12.35, -13.45, 18.85, -8.35)],
+  },
+  {
+    id: 'N4', name: 'Idé 4 – Ny hytte med forskjøvne pulttak', plan: 'eks', bya: null, idea: true,
+    desc: 'Alt unntatt boden rives. Ny hytte i to forskjøvne volumer med pulttak som løfter seg mot vest: høye glassvegger mot terrassen og kveldssola, lave og lukkede fasader mot veien. Soverommene ligger 60 cm lavere og følger terrenget; forskyvningen gir en skjermet uteplass og en naturlig inngang mellom volumene. Stående kledning og falset tak.',
+    keep: ['bod', 'canoe'],
+    build: (m, mk) => {
+      const g = new THREE.Group();
+      const mv = mk(null, 'falset', true, true);
+      const flA = FLOOR, flB = FLOOR - 0.6;
+      g.add(volume({ x0: -2.0, x1: 8.0, y0: -2.6, y1: 2.8, floor: flA, wallH: 2.4, roof: { type: 'shed', high: 'y0', pitch: 10, overhang: 0.5 }, plinth: 'concrete',
+        interior: [[5.6, 0.6, 5.7, 2.7], [5.7, 0.55, 7.9, 0.65]],
+        openings: {
+          y0: [{ at: 1.4, w: 2.4, sill: 0.05, top: 2.95, kind: 'slide' }, { at: 3.9, w: 2.4, sill: 0.05, top: 2.95, kind: 'slide' }, { at: 6.4, w: 2.4, sill: 0.05, top: 2.95, kind: 'slide' }, { at: 8.8, w: 1.2, sill: 0.6, top: 2.95 }],
+          x1: [{ at: 1.1, w: 1.6, sill: 0.05, top: 2.3, kind: 'slide' }],
+          y1: [{ at: 1.3, w: 0.6, sill: 1.1, top: 2.1 }, { at: 4.3, w: 2.4, sill: 1.15, top: 2.1 }, { at: 7.6, w: 1.6, sill: 1.15, top: 2.1 }],
+        } }, mv));
+      g.add(volume({ x0: -11.5, x1: -2.5, y0: 0.2, y1: 4.8, floor: flB, wallH: 2.4, roof: { type: 'shed', high: 'y0', pitch: 10, overhang: 0.5 }, plinth: 'concrete',
+        interior: [wallY(3.4, -11.4, -2.6), wallX(-8.5, 0.3, 3.4), wallX(-5.5, 0.3, 3.4)],
+        openings: {
+          y0: [{ at: 1.5, w: 1.6, sill: 0.4, top: 2.6 }, { at: 4.5, w: 1.6, sill: 0.4, top: 2.6 }, { at: 7.5, w: 0.8, sill: 1.2, top: 2.4 }],
+          y1: [{ at: 3.2, w: 0.6, sill: 1.3, top: 2.0 }, { at: 6.0, w: 0.6, sill: 1.3, top: 2.0 }],
+          x0: [{ at: 1.7, w: 0.8, sill: 0.9, top: 2.2 }],
+          x1: [{ at: 3.9, w: 1.0, sill: 0.05, top: 2.2, kind: 'door' }],
+        } }, mv));
+      g.add(deck(rectPoly(-9.5, -4.5, -2.5, 0.2), flB - 0.03, m));
+      const b = new Bag();
+      b.add(m.deck, segBox(-2.5, 4.05, -0.6, 4.05, flB - 0.5, flB - 0.03, 1.5)); // inngangsrepos
+      steps(b, m, -1.6, -0.6, 4.8, 1, flB - 0.03, heightAt(...fromFrame(-1.1, 6.0)) + 0.05);
+      steps(b, m, -2.0, -0.4, -2.6, -1, flA - 0.03, flB - 0.03, 0.32); // fra stua ned til uteplassen
+      furniture(b, m, -6.5, -2.2, flB - 0.03, 'round');
+      b.build(g);
+      g.userData.labels = roomLabels([['Kjøkken/stue/spis', 'ca. 44 m²', 2.4, 0.0], ['Bad', '4,6 m²', 6.8, 1.6], ['Bod/tekn.', '', 6.8, -0.9],
+        ['Sov 1', '8,7 m²', -10.0, 1.8], ['Sov 2', '9,0 m²', -7.0, 1.8], ['Bad', '9,0 m²', -4.0, 1.8], ['Gang/entré', '', -6.0, 4.1], ['Uteplass i le', '', -6.0, -2.2]]);
+      return g;
+    },
+    footprints: [rectPoly(-2.5, -3.1, 8.5, 3.3), rectPoly(-12.0, -0.3, -2.5, 5.3)],
+  },
+  {
+    id: 'N5', name: 'Idé 5 – Tun med tre hus', plan: 'eks', bya: null, idea: true,
+    desc: 'Hovedhuset (kjøkken/stue) beholdes. Nordfløyen og annekset erstattes av et frittstående sovehus og et lite badstuhus rundt et felles tun med pergola og utekjøkken. Tunet åpner seg mot kveldssola i vest og skjermes mot veien. Lave bygg i tradisjonell skala som kan bygges i etapper.',
+    keep: ['south', 'deck', 'bod', 'canoe'],
+    build: (m) => {
+      const g = new THREE.Group();
+      const flS = FLOOR - 0.45;
+      g.add(volume({ x0: -15.5, x1: -8.5, y0: -2.0, y1: 2.8, floor: flS, wallH: 2.35, roof: { axis: 'x', pitch: 30, overhang: 0.35 }, plinth: 'concrete',
+        interior: [wallX(-12.2, -1.9, 2.7), wallY(0.9, -12.15, -8.6), wallX(-10.3, 0.95, 2.7)],
+        openings: {
+          y0: [{ at: 1.7, w: 1.3, sill: 0.8, top: 2.15 }, { at: 5.3, w: 1.3, sill: 0.8, top: 2.15 }],
+          y1: [{ at: 2.6, w: 0.6, sill: 1.2, top: 2.0 }, { at: 5.5, w: 1.2, sill: 0.8, top: 2.15 }],
+          x1: [{ at: 2.0, w: 1.0, sill: 0.05, top: 2.1, kind: 'door' }, { at: 3.7, w: 1.0, sill: 0.8, top: 2.1 }],
+          x0: [{ at: 2.4, w: 1.0, sill: 0.8, top: 2.1 }],
+        } }, m));
+      const flB = 12.35;
+      g.add(volume({ x0: -8.4, x1: -4.6, y0: 4.6, y1: 7.6, floor: flB, wallH: 2.2, roof: { axis: 'y', pitch: 30, overhang: 0.3 }, plinth: 'concrete',
+        interior: [wallX(-6.2, 4.7, 7.5)],
+        openings: { y0: [{ at: 1.0, w: 0.8, sill: 0.05, top: 2.0, kind: 'door' }, { at: 2.8, w: 0.9, sill: 1.0, top: 1.8 }], x0: [{ at: 1.5, w: 0.6, sill: 1.1, top: 1.7 }] } }, m));
+      g.add(deck(rectPoly(-8.5, -1.6, -3.35, 2.4), flS - 0.03, m));
+      g.add(pergola(-8.3, -4.2, -1.4, 2.2, flS + 2.45, m, false));
+      const b = new Bag();
+      b.add(m.dark, segBox(-7.4, 6.6, -7.25, 6.6, flB + 2.0, flB + 3.6, 0.15)); // badstupipe
+      b.add(m.trim, segBox(-8.2, -1.1, -6.2, -1.1, flS - 0.03, flS + 0.9, 0.6)); // utekjøkken
+      furniture(b, m, -5.6, 0.5, flS - 0.03, 'table');
+      steps(b, m, -7.4, -6.0, 2.4, 1, flS - 0.03, heightAt(...fromFrame(-6.7, 3.9)) + 0.05);
+      b.build(g);
+      g.userData.labels = roomLabels([['Sov', '10,6 m²', -13.85, 0.4], ['Sov', '6,9 m²', -10.4, -0.5], ['Bad', '3,2 m²', -9.4, 1.8], ['Gang', '', -11.2, 1.8],
+        ['Tun', '', -5.9, -0.2], ['Badstu', '', -7.3, 6.1], ['Bod', '', -5.4, 6.1]]);
+      return g;
+    },
+    footprints: [EXT_SOUTH(), rectPoly(-15.9, -2.4, -8.1, 3.2), rectPoly(-8.8, 4.3, -4.2, 7.9)],
+  },
+];
+
 export const EXISTING_FOOTPRINTS = {
   south: rectPoly(-3.75, -2.62, 7.55, 2.95), north: rectPoly(-9.21, -2.62, -3.75, 1.81),
 };
+
+export const ALL = [...VARIANTS, ...IDEAS];
 
 export function buildSite(scene, opts) {
   const root = new THREE.Group();
@@ -413,17 +591,22 @@ export function buildSite(scene, opts) {
   let flag = flagpole(6.0, -16.6);
   root.add(flag);
 
-  function materials() {
-    const m = makeMaterials(opts.cladding, opts.roof, opts.vertical);
+  function materials(clad = opts.cladding, roof = opts.roof, vertical = opts.vertical, modern = false) {
+    const m = makeMaterials(clad ?? opts.cladding, roof ?? opts.roof, vertical);
+    if (modern) {
+      // moderne uttrykk: mørke vindusrammer, beslag og hjørner i stedet for hvite
+      const dark = (clad ?? opts.cladding) === 'hvit' ? 0x2a2c2e : 0x1f2124;
+      for (const k of ['trim', 'frame', 'roofEdge']) m[k].color.setHex(dark);
+    }
     m.dark = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7 });
     m.teak = new THREE.MeshStandardMaterial({ color: 0x9c6b3e, roughness: 0.7 });
     m.chair = new THREE.MeshStandardMaterial({ color: 0x1e1f21, roughness: 0.6 });
-    return m;
+    return nameMaterials(m);
   }
 
   function show(variantId) {
     if (current) { root.remove(current.root); current.root.traverse((o) => o.geometry?.dispose()); }
-    const v = VARIANTS.find((x) => x.id === variantId);
+    const v = ALL.find((x) => x.id === variantId);
     const mNew = materials();
     const mAnnex = makeMaterials(opts.cladding, 'shingel', false);
     mAnnex.dark = mNew.dark;
@@ -437,7 +620,7 @@ export function buildSite(scene, opts) {
     }
     if (v.keep.includes('annex')) vroot.add(buildAnnex(mAnnex));
     let built = null;
-    if (v.build) { built = v.build(mNew); vframe.add(built); }
+    if (v.build) { built = v.build(mNew, (c, r, vt, mod) => materials(c, r, vt, mod)); vframe.add(built); }
     // rives (spøkelse)
     const ghosts = new THREE.Group();
     const gm = new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.22, depthWrite: false });
@@ -490,11 +673,11 @@ export function buildSite(scene, opts) {
     let maxFacade = 0, maxRidge = 0, maxEave = 0, area = 0;
     for (const u of vols) {
       const [x0, y0, x1, y1] = u.rect;
-      if (x1 - x0 < 1.5 || y1 - y0 < 1.5) continue;
+      if (x1 - x0 < 1.5 || y1 - y0 < 1.5 || u.ignoreHeight) continue;
       const avg = avgTerrain(x0, y0, x1, y1);
       maxFacade = Math.max(maxFacade, x1 - x0, y1 - y0);
       maxRidge = Math.max(maxRidge, u.zRidge - avg);
-      maxEave = Math.max(maxEave, u.floor + 2.5 - avg);
+      maxEave = Math.max(maxEave, (u.zEave ?? u.floor + 2.5) - avg);
       area += (x1 - x0) * (y1 - y0);
     }
     if (v.footprints) {

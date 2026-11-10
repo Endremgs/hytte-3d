@@ -1,0 +1,242 @@
+[
+ {
+  "id": "eks",
+  "name": "Dagens hytte",
+  "desc": "Hovedhus 76,1 m² + anneks 26,4 m² (BYA fra situasjonsplan A10-03), i tillegg bod og terrasse.",
+  "idea": false,
+  "images": [
+   {
+    "file": "eks_oversikt.jpg",
+    "title": "Fra lufta"
+   },
+   {
+    "file": "eks_knaus.jpg",
+    "title": "Fra knausen i sørvest"
+   },
+   {
+    "file": "eks_plen.jpg",
+    "title": "Fra plenen"
+   }
+  ]
+ },
+ {
+  "id": "V1",
+  "name": "V1 – tverrfløy 45,5 m²",
+  "desc": "Nordre del av hytta og annekset rives. Ny fløy på tvers i nord (45,5 m²), koblet til eksisterende hoveddel (59,9 m²) via overdekket uteplass.",
+  "idea": false,
+  "images": [
+   {
+    "file": "V1_oversikt.jpg",
+    "title": "Fra lufta"
+   },
+   {
+    "file": "V1_knaus.jpg",
+    "title": "Fra knausen i sørvest"
+   },
+   {
+    "file": "V1_plen.jpg",
+    "title": "Fra plenen"
+   }
+  ]
+ },
+ {
+  "id": "V2",
+  "name": "V2 – tverrfløy 63,9 m²",
+  "desc": "Som V1, men større og lengre tverrfløy (63,9 m²) som strekker seg både mot veien og mot berget i vest.",
+  "idea": false,
+  "images": [
+   {
+    "file": "V2_oversikt.jpg",
+    "title": "Fra lufta"
+   },
+   {
+    "file": "V2_knaus.jpg",
+    "title": "Fra knausen i sørvest"
+   },
+   {
+    "file": "V2_plen.jpg",
+    "title": "Fra plenen"
+   }
+  ]
+ },
+ {
+  "id": "V3",
+  "name": "V3 – parallell fløy, 110 m²",
+  "desc": "Ny langfløy parallelt med hytta, forskjøvet mot veien og nordover. Eksisterende hoveddel beholdes; overdekket inngang mellom fløyene.",
+  "idea": false,
+  "images": [
+   {
+    "file": "V3_oversikt.jpg",
+    "title": "Fra lufta"
+   },
+   {
+    "file": "V3_knaus.jpg",
+    "title": "Fra knausen i sørvest"
+   },
+   {
+    "file": "V3_plen.jpg",
+    "title": "Fra plenen"
+   }
+  ]
+ },
+ {
+  "id": "V4",
+  "name": "V4 – ny L-formet hytte 117,3 m²",
+  "desc": "All eksisterende bebyggelse (unntatt bod) rives. Ny L-formet hytte: tverrfløy i nord og langfløy nærmere veien, med terrasse i le mot vest.",
+  "idea": false,
+  "images": [
+   {
+    "file": "V4_oversikt.jpg",
+    "title": "Fra lufta"
+   },
+   {
+    "file": "V4_knaus.jpg",
+    "title": "Fra knausen i sørvest"
+   },
+   {
+    "file": "V4_plen.jpg",
+    "title": "Fra plenen"
+   }
+  ]
+ },
+ {
+  "id": "A2003",
+  "name": "Skisse A20-03 – 4 soverom",
+  "desc": "Detaljert skisse (02.09.26): hoveddel med kjøkken/stue/spis 27,8 m², bad, soverom og entré. Ny tverrfløy med 4 soverom (bl.a. «fire barn i køyeseng»). Amfitrapp og uteplass med pergola mellom. Skru av taket for å se planløsningen.",
+  "idea": false,
+  "images": [
+   {
+    "file": "A2003_oversikt.jpg",
+    "title": "Fra lufta"
+   },
+   {
+    "file": "A2003_knaus.jpg",
+    "title": "Fra knausen i sørvest"
+   },
+   {
+    "file": "A2003_plen.jpg",
+    "title": "Fra plenen"
+   }
+  ]
+ },
+ {
+  "id": "A2002",
+  "name": "Skisse A20-02 – L-fløy med stue",
+  "desc": "Detaljert skisse (02.09.26): som A20-03, men ny fløy er L-formet med egen stue 15,5 m², tre soverom, gang og WC. Hoveddel med kjøkken/stue/spis og større soverom 8,1 m².",
+  "idea": false,
+  "images": [
+   {
+    "file": "A2002_oversikt.jpg",
+    "title": "Fra lufta"
+   },
+   {
+    "file": "A2002_knaus.jpg",
+    "title": "Fra knausen i sørvest"
+   },
+   {
+    "file": "A2002_plen.jpg",
+    "title": "Fra plenen"
+   }
+  ]
+ },
+ {
+  "id": "N1",
+  "name": "Idé 1 – Sovehems i ny nordfløy",
+  "desc": "Nordfløyen og annekset erstattes av en 1½-etasjes fløy med bratt saltak (38°) og takarker. Tre soverom og bad på bakkeplan, sovehems/loft over. Gir mest mulig soveplass uten å øke fotavtrykket mye – plenen og utsikten beholdes, og fløyen trappes 35 cm ned etter terrenget.",
+  "idea": true,
+  "images": [
+   {
+    "file": "N1_oversikt.jpg",
+    "title": "Fra lufta"
+   },
+   {
+    "file": "N1_knaus.jpg",
+    "title": "Fra knausen i sørvest"
+   },
+   {
+    "file": "N1_plen.jpg",
+    "title": "Fra plenen"
+   }
+  ]
+ },
+ {
+  "id": "N2",
+  "name": "Idé 2 – Le-vinkel med sommerstue",
+  "desc": "Hele dagens hytte beholdes. Annekset rives, og en ny fløy på tvers bygges vestover fra nordenden. Den danner en vinkel som gir le for nordavinden på terrassen, og en sommerstue med glassgavl mot utsikten og kveldssola. Pergola over hjørnet av terrassen.",
+  "idea": true,
+  "images": [
+   {
+    "file": "N2_oversikt.jpg",
+    "title": "Fra lufta"
+   },
+   {
+    "file": "N2_knaus.jpg",
+    "title": "Fra knausen i sørvest"
+   },
+   {
+    "file": "N2_plen.jpg",
+    "title": "Fra plenen"
+   }
+  ]
+ },
+ {
+  "id": "N3",
+  "name": "Idé 3 – Utsiktspaviljong på knausen",
+  "desc": "Dagens hytte beholdes, annekset rives. Øverst på den store knausen i sørvest (ca. 17,5 moh., 4 m over hytta) bygges en glasset paviljong på ca. 23 m² på stålsøyler, med grønt sedumtak som glir inn i landskapet. Herfra ser man ut over hele tomta og landskapet, og får sol til seint på kvelden. Trapp opp fra terrassen; ingen sprengning.",
+  "idea": true,
+  "images": [
+   {
+    "file": "N3_oversikt.jpg",
+    "title": "Fra lufta"
+   },
+   {
+    "file": "N3_paviljong.jpg",
+    "title": "Opp mot paviljongen"
+   },
+   {
+    "file": "N3_utsikt.jpg",
+    "title": "Fra paviljongen"
+   }
+  ]
+ },
+ {
+  "id": "N4",
+  "name": "Idé 4 – Ny hytte med forskjøvne pulttak",
+  "desc": "Alt unntatt boden rives. Ny hytte i to forskjøvne volumer med pulttak som løfter seg mot vest: høye glassvegger mot terrassen og kveldssola, lave og lukkede fasader mot veien. Soverommene ligger 60 cm lavere og følger terrenget; forskyvningen gir en skjermet uteplass og en naturlig inngang mellom volumene. Stående kledning og falset tak.",
+  "idea": true,
+  "images": [
+   {
+    "file": "N4_oversikt.jpg",
+    "title": "Fra lufta"
+   },
+   {
+    "file": "N4_knaus.jpg",
+    "title": "Fra knausen i sørvest"
+   },
+   {
+    "file": "N4_plen.jpg",
+    "title": "Fra plenen"
+   }
+  ]
+ },
+ {
+  "id": "N5",
+  "name": "Idé 5 – Tun med tre hus",
+  "desc": "Hovedhuset (kjøkken/stue) beholdes. Nordfløyen og annekset erstattes av et frittstående sovehus og et lite badstuhus rundt et felles tun med pergola og utekjøkken. Tunet åpner seg mot kveldssola i vest og skjermes mot veien. Lave bygg i tradisjonell skala som kan bygges i etapper.",
+  "idea": true,
+  "images": [
+   {
+    "file": "N5_oversikt.jpg",
+    "title": "Fra lufta"
+   },
+   {
+    "file": "N5_knaus.jpg",
+    "title": "Fra knausen i sørvest"
+   },
+   {
+    "file": "N5_plen.jpg",
+    "title": "Fra plenen"
+   }
+  ]
+ }
+]
