@@ -305,18 +305,18 @@ function joinRoof(def, T) {
 // Større, avlange vinduer mot veien (nedsiden) i hovedhytta. rooms: [x' fra, x' til, rom]
 function roadWindows(def, rooms, style = 'liggende') {
   const ops = [];
-  const win = (xa, xb, sill, top) => ops.push({ at: def.x1 - (xa + xb) / 2, w: xb - xa, sill, top });
+  const win = (xa, xb, sill, top, panes) => ops.push({ at: def.x1 - (xa + xb) / 2, w: xb - xa, sill, top, panes });
   for (const [a, b, kind] of rooms) {
     const L = b - a;
-    if (kind === 'bad') { win(a + (L - Math.min(1.2, L - 0.5)) / 2, b - (L - Math.min(1.2, L - 0.5)) / 2, 1.45, 2.1); continue; }
+    if (kind === 'bad') { const w = Math.min(0.9, L - 0.5); win(a + (L - w) / 2, b - (L - w) / 2, 1.5, 2.05); continue; }
     if (style === 'staende') {
       const n = Math.max(1, Math.floor((L - 0.3) / 1.2)), w = 0.85;
       for (let i = 0; i < n; i++) { const c = a + ((i + 0.5) * L) / n; win(c - w / 2, c + w / 2, 0.25, 2.3); }
     } else if (L > 4) {
-      // stue/kjøkken: to lange vindusbånd
-      const m = 0.35, gap = 0.45, wa = (L - 2 * m - gap) * 0.6;
-      win(a + m, a + m + wa, 0.75, 2.2); win(a + m + wa + gap, b - m, 0.75, 2.2);
-    } else win(a + 0.4, b - 0.4, 0.9, 2.2);
+      // stue/kjøkken: ett langt vindusbånd i to store felt
+      const w = Math.min(4.2, L - 1.2);
+      win(a + (L - w) / 2, b - (L - w) / 2, 0.8, 2.2, 2);
+    } else win(a + 0.5, b - 0.5, 0.9, 2.2, 1);
   }
   def.openings = { ...def.openings, y1: ops };
 }
@@ -329,13 +329,14 @@ function addWishes(g, b, m, M, T, { shower = false } = {}) {
   const deckPoly = [[x0, -4.86], [-3.28, -4.86], [-3.28, -2.32], [x1, -2.32], [x1, M.y1], [x0, M.y1]];
   g.add(deck(deckPoly, DECK_Z, m));
   const clamps = [{ poly: deckPoly, z: DECK_Z }];
-  // bred trapp (massive trinn) ned mot plenen, så gangvei med heller som slynger seg ned til Hellesmoveien
+  // bred trapp (massive trinn) ned mot plenen
   const st = terrainStair(b, m, [[cx, M.y1], [cx, M.y1 + 8]], { width: x1 - x0 - 0.3, z0: DECK_Z, tread: 0.32, kind: 'solid', stopAtGround: true });
-  const walk = [st.end, [cx + 0.7, 9.5], [cx - 0.2, 14.5], [-4.6, 20.4]];
-  stonePath(b, walk, { width: 1.1 });
-  // tretrapp fra sørenden av terrassen (ved berget) ned mot veien
-  const south = [[8.7, 1.85], [8.7, 4.5], [9.3, 10.0], [9.2, 16.9]];
+  // tretrapp fra sørenden av terrassen (ved berget) ned den bratte kneika til hellene
+  const south = [[8.7, 1.85], [8.7, 5.4]];
   terrainStair(b, m, south, { width: 1.1, z0: DECK_Z, kind: 'wood', rail: 'left' });
+  // gangvei med heller: bortover langs skråningen under hytta til foten av tretrappa, så ned til Hellesmoveien
+  const walk = [st.end, [cx + 1.2, 5.5], [0.0, 5.6], [5.0, 5.9], [8.7, 5.75], [9.3, 10.0], [9.2, 16.9]];
+  stonePath(b, walk, { width: 1.1 });
   const clear = [deckPoly, ...stripPolys([[cx, M.y1], ...walk], 2.6), ...stripPolys(south, 2.4)];
   if (shower) {
     // utedusj i det ytre hjørnet av tverrfløyen (tette vegger på begge sider), med en smal platting
@@ -353,7 +354,7 @@ function addWishes(g, b, m, M, T, { shower = false } = {}) {
   return { stairEnd: st.end };
 }
 
-const WISH_TEXT = ' <b>Med eiernes ønsker:</b> terrassen er forlenget helt inn til tverrfløyen og gjennom mellombygget, mellombygget har fått hovedhyttas saltak, bred trapp ned på nedsiden fra mellombygget og gangvei med heller ned til veien, tretrapp fra sørenden av terrassen (ved berget) ned mot veien, og større avlange vinduer mot veien i hovedhytta. Slå av «Vis eiernes ønsker» for å se arkitektens skisse.';
+const WISH_TEXT = ' <b>Med eiernes ønsker:</b> terrassen er forlenget helt inn til tverrfløyen og gjennom mellombygget, mellombygget har fått hovedhyttas saltak, bred trapp ned på nedsiden fra mellombygget og gangvei med heller bortover til tretrappa og ned til veien, tretrapp fra sørenden av terrassen (ved berget) ned til hellene, og større avlange vinduer mot veien i hovedhytta. Slå av «Vis eiernes ønsker» for å se arkitektens skisse.';
 const A2003_ROOMS = [[-3.88, -2.17, 'bad'], [-2.17, 3.74, 'stue'], [3.88, 6.79, 'sov']];
 const A2002_ROOMS = [[-3.83, -1.92, 'bad'], [-1.85, 3.83, 'stue'], [3.9, 7.34, 'sov']];
 

@@ -42,8 +42,8 @@ I tillegg til arkitektens forslag har modellen fem egne skisser (`IDEAS` i `src/
 Bryteren **Vis eiernes ønsker** (på som standard, `onsker=0` i lenken slår den av) legger på (`addWishes` m.fl. i `src/site.js`, trapper/heller/dusj i `src/landscape.js`):
 - terrassen forlenget langs vestsiden helt inn til tverrfløyen og gjennom mellombygget,
 - mellombygget under hovedhyttas saltak (taket forlenges til mønet møter tverrfløyens tak) – gir ca. 20 m² mer BYA,
-- bred trapp ned på nedsiden fra mellombygget og gangvei med heller ned til Hellesmoveien,
-- tretrapp fra sørenden av terrassen (ved berget) ned mot veien – går gjennom sonen for den hule eika,
+- bred trapp ned på nedsiden fra mellombygget og gangvei med heller bortover under hytta og ned til Hellesmoveien (nederste del i sonen for den hule eika),
+- tretrapp fra sørenden av terrassen (ved berget) ned den bratte kneika til hellene,
 - større avlange vinduer mot veien i hovedhytta (liggende vindusbånd eller høye stående, `vin=staende`).
 
 **Utkast – A20-03 med utedusj** (`U1`) har i tillegg utedusj i det ytre hjørnet av tverrfløyen med platting langs gavlen.
