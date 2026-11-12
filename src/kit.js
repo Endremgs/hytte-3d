@@ -301,12 +301,14 @@ export function volume(def, m) {
   let roofInfo = { zRidge: zE };
   const ax = def.roof?.axis ?? 'x';
   if ((def.roof?.type ?? 'gable') === 'gable') {
-    const x1r = x1 + (def.roof?.ext1 ?? 0);
-    roofInfo = gableRoof(roofBag, m, { x0, x1: x1r, y0, y1, ...def.roof }, zE, ax);
+    // ext0/ext1: taket forlenges forbi gavlen (f.eks. over et mellombygg inn mot en annen fløy)
+    const x1r = x1 + (def.roof?.ext1 ?? 0), x0r = x0 - (def.roof?.ext0 ?? 0);
+    roofInfo = gableRoof(roofBag, m, { x0: x0r, x1: x1r, y0, y1, ...def.roof }, zE, ax);
     // gavltrekanter
-    const pitch = ((def.roof?.pitch ?? 22) * Math.PI) / 180;
     if (ax === 'x') {
       if (!def.open?.includes('x0')) bag.add(m.clad, gableTri(x0, y1, x0, y0, zE, roofInfo.zRidge, 0.22));
+      // tett gavlfelt der det forlengede taket møter veggen på nabofløyen
+      if (def.roof?.gable0At != null) bag.add(m.clad, gableTri(def.roof.gable0At, y1, def.roof.gable0At, y0, zE, roofInfo.zRidge, 0.22));
       if (!def.open?.includes('x1') || def.roof?.ext1) bag.add(m.clad, gableTri(x1r, y0, x1r, y1, zE, roofInfo.zRidge, 0.22));
     } else {
       bag.add(m.clad, gableTri(x0, y0, x1, y0, zE, roofInfo.zRidge, 0.22));

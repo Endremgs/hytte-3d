@@ -65,6 +65,7 @@
   #walkHelp[style*="block"] ~ #cross { display: block; }
   #loading { position: fixed; inset: 0; display: grid; place-items: center; background: #dfe7ee; font-size: 16px; z-index: 10; }
   #credits { position: fixed; left: 10px; bottom: 8px; font-size: 10.5px; color: rgba(255,255,255,.9); text-shadow: 0 1px 2px rgba(0,0,0,.6); max-width: 55vw; }
+  #wishCtl { background: #eef5ec; border: 1px solid #cfe2c9; padding: 6px 8px; border-radius: 8px; font-size: 12px; margin-top: 6px; }
   #roofsTip { display: none; background: #fff6e0; border: 1px solid #f3dca2; padding: 6px 8px; border-radius: 8px; font-size: 12px; margin-top: 6px; }
 </style>
 </head>
@@ -83,6 +84,11 @@
     <h3>Alternativ</h3>
     <div id="variants"></div>
     <div id="roofsTip">Tips: slå av <b>Vis tak</b> under Visning for å se planløsningen med romnavn.</div>
+    <div id="wishCtl" style="display:none">
+      <label class="row" id="wishRow"><input type="checkbox" id="wishes" checked /> Vis eiernes ønsker (terrasse, trapper, mellombygg, vinduer)</label>
+      <div id="wishWin"><div class="lbl"><span>Vinduer mot veien i hovedhytta</span></div>
+        <select id="windows"><option value="liggende">Store avlange, liggende vindusbånd</option><option value="staende">Høye, stående vinduer</option></select></div>
+    </div>
     <div id="variantInfo"></div>
   </div>
 
@@ -136,11 +142,13 @@
   <div class="sec">
     <h3>Terrasse på berget</h3>
     <div id="rdCtl">
-      <label class="row keep"><input type="checkbox" id="rdOn" /> Vis terrasse på berget ved flaggstanga</label>
+      <label class="row keep"><input type="checkbox" id="rdOn" /> Vis terrasse nedsenket i berget ved flaggstanga</label>
       <div class="lbl"><span>Lengde (mot flaggstanga)</span><span id="rdLenLbl"></span></div>
       <input type="range" id="rdLen" min="3" max="7" step="0.25" value="5.5" />
       <div class="lbl"><span>Bredde (inn mot berget)</span><span id="rdDepLbl"></span></div>
       <input type="range" id="rdDep" min="2.5" max="4.5" step="0.25" value="3.0" />
+      <div class="lbl"><span>Senket ned i berget</span><span id="rdSinkLbl"></span></div>
+      <input type="range" id="rdSink" min="0.2" max="1.0" step="0.05" value="0.6" />
       <div class="grid2">
         <div><div class="lbl"><span>Rekkverk</span></div><select id="rdRail"><option value="tre">Tre</option><option value="glass">Glass</option><option value="ingen">Ingen</option></select></div>
         <div><div class="lbl"><span>Møbler</span></div><select id="rdFurn"><option value="spise">Spisebord</option><option value="lounge">Solsenger</option><option value="begge">Begge</option><option value="ingen">Ingen</option></select></div>
