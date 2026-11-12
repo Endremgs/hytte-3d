@@ -170,7 +170,7 @@ function opening(bag, m, side, o, z0, wallT, { shutters = false } = {}) {
   } else {
     bag.add(m.glass, segBox(sx, sy, ex, ey, zs + fw, zt - fw, 0.03));
     // sprosser for store felt
-    const nPanes = Math.max(1, Math.round(o.w / (o.kind === 'slide' ? 1.0 : 0.9)));
+    const nPanes = o.panes ?? Math.max(1, Math.round(o.w / (o.kind === 'slide' ? 1.0 : 0.9)));
     for (let k = 1; k < nPanes; k++) {
       const t = c0 + (o.w * k) / nPanes;
       const px = ax + ux * t + fx, py = ay + uy * t + fy;
