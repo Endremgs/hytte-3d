@@ -37,3 +37,14 @@ I tillegg til arkitektens forslag har modellen fem egne skisser (`IDEAS` i `src/
 3. **Utsiktspaviljong på knausen** – glasset rom på søyler med sedumtak øverst på knausen.
 4. **Forskjøvne pulttak** – ny hytte i to volumer som trappes med terrenget, glass mot kveldssola.
 5. **Tun med tre hus** – hovedhuset beholdes, sovehus og badstu rundt et skjermet tun (kan bygges i etapper).
+
+## Eiernes ønsker til tverrfløy-skissene (A20-02/A20-03)
+Bryteren **Vis eiernes ønsker** (på som standard, `onsker=0` i lenken slår den av) legger på (`addWishes` m.fl. i `src/site.js`, trapper/heller/dusj i `src/landscape.js`):
+- terrassen forlenget langs vestsiden helt inn til tverrfløyen og gjennom mellombygget,
+- mellombygget under hovedhyttas saltak (taket forlenges til mønet møter tverrfløyens tak) – gir ca. 20 m² mer BYA,
+- bred trapp ned på nedsiden fra mellombygget og gangvei med heller ned til Hellesmoveien,
+- tretrapp fra sørenden av terrassen (ved berget) ned mot veien – går gjennom sonen for den hule eika,
+- større avlange vinduer mot veien i hovedhytta (liggende vindusbånd eller høye stående, `vin=staende`).
+
+**Utkast – A20-03 med utedusj** (`U1`) har i tillegg utedusj i det ytre hjørnet av tverrfløyen med platting langs gavlen.
+Terrassen på berget senkes ned i berget (`sink` i `src/rockdeck.js`, femte verdi i `bt=` i lenken).

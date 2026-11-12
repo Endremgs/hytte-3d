@@ -4,6 +4,7 @@ import walls from '../data/walls.json';
 import { AXIS_DEG, fromFrame, toFrame, heightAt, naturalHeight, polyArea } from './geo.js';
 import { makeMaterials, nameMaterials, volume, deck, stairs, pergola, segBox, Bag, P, prism } from './kit.js';
 import { flagTex } from './textures.js';
+import { terrainStair, stonePath, stripPolys, outdoorShower } from './landscape.js';
 
 // Gulvhøyde dagens hytte (NN2000). Laserdata: bakken under terrassen mot vest ligger på ca. 13,6,
 // ved inngangen mot øst 12,4–12,75 (bildene viser ca. 0,9 m opp til døra der).
@@ -60,7 +61,7 @@ function autoOpenings(def) {
 }
 
 // Volum fra arkitektens plantegning: vegger og åpninger hentes fra tegningen
-function planVolume(rects, b, floor, roof, m) {
+function planVolume(rects, b, floor, roof, m, tweak) {
   const sel = rects.filter((r) => r[2] > b[0] - 0.4 && r[0] < b[2] + 0.4 && r[3] > b[1] - 0.4 && r[1] < b[3] + 0.4);
   const x0 = Math.min(...sel.map((r) => r[0])), x1 = Math.max(...sel.map((r) => r[2]));
   const y0 = Math.min(...sel.map((r) => r[1])), y1 = Math.max(...sel.map((r) => r[3]));
@@ -96,7 +97,9 @@ function planVolume(rects, b, floor, roof, m) {
     openings[k] = ops;
   }
   const interior = sel.filter((r) => !exterior.has(r));
-  return { def: { x0, x1, y0, y1, floor, roof, openings, interior }, group: volume({ x0, x1, y0, y1, floor, roof, openings, interior, plinth: 'concrete' }, m) };
+  const def = { x0, x1, y0, y1, floor, roof, openings, interior, plinth: 'concrete' };
+  if (tweak) tweak(def);
+  return { def, group: volume(def, m) };
 }
 
 function label(text, sub) {
@@ -288,6 +291,98 @@ function buildAnnex(mAnnex) {
   return g;
 }
 
+// ---------- eiernes ønsker til tverrfløy-skissene (A20-02/A20-03) ----------
+// Mellombygget får hovedhyttas saltak: taket forlenges over mellombygget til mønet møter takflaten på
+// tverrfløyen (møne på tvers), eller til gavlen på fløyen når den har møne i samme retning.
+function joinRoof(def, T) {
+  const r = def.roof, ov = r.overhang ?? 0.45, rad = (d) => (d * Math.PI) / 180;
+  const rise = ((def.y1 - def.y0) / 2) * Math.tan(rad(r.pitch));
+  const across = T.roof.axis === 'y';
+  const meet = across ? T.x1 - rise / Math.tan(rad(T.roof.pitch)) : T.x1 - 0.05;
+  def.roof = { ...r, ext0: def.x0 - ov - meet, gable0At: across ? T.x1 : null };
+}
+
+// Større, avlange vinduer mot veien (nedsiden) i hovedhytta. rooms: [x' fra, x' til, rom]
+function roadWindows(def, rooms, style = 'liggende') {
+  const ops = [];
+  const win = (xa, xb, sill, top) => ops.push({ at: def.x1 - (xa + xb) / 2, w: xb - xa, sill, top });
+  for (const [a, b, kind] of rooms) {
+    const L = b - a;
+    if (kind === 'bad') { win(a + (L - Math.min(1.2, L - 0.5)) / 2, b - (L - Math.min(1.2, L - 0.5)) / 2, 1.45, 2.1); continue; }
+    if (style === 'staende') {
+      const n = Math.max(1, Math.floor((L - 0.3) / 1.2)), w = 0.85;
+      for (let i = 0; i < n; i++) { const c = a + ((i + 0.5) * L) / n; win(c - w / 2, c + w / 2, 0.25, 2.3); }
+    } else if (L > 4) {
+      // stue/kjøkken: to lange vindusbånd
+      const m = 0.35, gap = 0.45, wa = (L - 2 * m - gap) * 0.6;
+      win(a + m, a + m + wa, 0.75, 2.2); win(a + m + wa + gap, b - m, 0.75, 2.2);
+    } else win(a + 0.4, b - 0.4, 0.9, 2.2);
+  }
+  def.openings = { ...def.openings, y1: ops };
+}
+
+// Terrasse forlenget langs vestsiden helt inn til tverrfløyen og gjennom mellombygget, bred trapp ned på
+// nedsiden fra mellombygget, gangvei med heller ned til veien og tretrapp fra sørenden av terrassen ved berget.
+// M = hovedhytta, T = fløyen mellombygget grenser mot (veggliv i rammen).
+function addWishes(g, b, m, M, T, { shower = false } = {}) {
+  const x0 = T.x1, x1 = M.x0, cx = (x0 + x1) / 2;
+  const deckPoly = [[x0, -4.86], [-3.28, -4.86], [-3.28, -2.32], [x1, -2.32], [x1, M.y1], [x0, M.y1]];
+  g.add(deck(deckPoly, DECK_Z, m));
+  const clamps = [{ poly: deckPoly, z: DECK_Z }];
+  // bred trapp (massive trinn) ned mot plenen, så gangvei med heller som slynger seg ned til Hellesmoveien
+  const st = terrainStair(b, m, [[cx, M.y1], [cx, M.y1 + 8]], { width: x1 - x0 - 0.3, z0: DECK_Z, tread: 0.32, kind: 'solid', stopAtGround: true });
+  const walk = [st.end, [cx + 0.7, 9.5], [cx - 0.2, 14.5], [-4.6, 20.4]];
+  stonePath(b, walk, { width: 1.1 });
+  // tretrapp fra sørenden av terrassen (ved berget) ned mot veien
+  const south = [[8.7, 1.85], [8.7, 4.5], [9.3, 10.0], [9.2, 16.9]];
+  terrainStair(b, m, south, { width: 1.1, z0: DECK_Z, kind: 'wood', rail: 'left' });
+  const clear = [deckPoly, ...stripPolys([[cx, M.y1], ...walk], 2.6), ...stripPolys(south, 2.4)];
+  if (shower) {
+    // utedusj i det ytre hjørnet av tverrfløyen (tette vegger på begge sider), med en smal platting
+    // langs gavlen fra terrassen
+    const sh = { x0: T.x0, x1: T.x0 + 1.5, y0: T.y0 - 1.5, y1: T.y0, z: DECK_Z, wall: 'y1', door: 'x1' };
+    outdoorShower(b, m, sh);
+    const walkway = rectPoly(sh.x1, -4.86, x0, T.y0);
+    g.add(deck(walkway, DECK_Z, m));
+    for (const poly of [rectPoly(sh.x0, sh.y0, sh.x1, sh.y1), walkway]) { clamps.push({ poly, z: DECK_Z }); clear.push(poly); }
+  }
+  g.userData.clamps = clamps;
+  g.userData.clear = clear;
+  // overdekket areal mellom veggene i mellombygget – teller med i BYA (takutstikk under 1 m gjør ikke)
+  g.userData.addedBya = (x1 - x0) * (M.y1 - M.y0);
+  return { stairEnd: st.end };
+}
+
+const WISH_TEXT = ' <b>Med eiernes ønsker:</b> terrassen er forlenget helt inn til tverrfløyen og gjennom mellombygget, mellombygget har fått hovedhyttas saltak, bred trapp ned på nedsiden fra mellombygget og gangvei med heller ned til veien, tretrapp fra sørenden av terrassen (ved berget) ned mot veien, og større avlange vinduer mot veien i hovedhytta. Slå av «Vis eiernes ønsker» for å se arkitektens skisse.';
+const A2003_ROOMS = [[-3.88, -2.17, 'bad'], [-2.17, 3.74, 'stue'], [3.88, 6.79, 'sov']];
+const A2002_ROOMS = [[-3.83, -1.92, 'bad'], [-1.85, 3.83, 'stue'], [3.9, 7.34, 'sov']];
+
+function buildA2003(m, o, { shower = false } = {}) {
+  const g = new THREE.Group();
+  const R = walls.A2003, w = shower || o?.wishes !== false;
+  const T = planVolume(R, [-13.1, -3.8, -7.7, 6.2], FLOOR, { axis: 'y', pitch: 22, overhang: 0.35 }, m);
+  const M = planVolume(R, [-4.1, -2.6, 7.4, 2.8], FLOOR, { axis: 'x', pitch: 20, overhang: 0.4 }, m,
+    w && ((d) => { joinRoof(d, T.def); roadWindows(d, A2003_ROOMS, o?.windows); }));
+  g.add(M.group, T.group);
+  const b = new Bag();
+  if (w) addWishes(g, b, m, M.def, T.def, { shower });
+  else {
+    g.add(pergola(-7.85, -3.88, -0.6, 2.58, FLOOR + 2.5, m, true));
+    g.add(deck(rectPoly(-7.85, -2.32, -3.88, 2.58), FLOOR - 0.03, m));
+    // amfitrapp ned mot plenen (ØNØ)
+    for (let i = 0; i < 4; i++) b.add(m.deck, segBox(-7.6, 2.75 + i * 0.4, -4.1, 2.75 + i * 0.4, heightAt(...fromFrame(-6, 3.5)) - 0.3, FLOOR - 0.03 - i * 0.38, 0.4));
+  }
+  b.build(g);
+  const rows = [['Sov. 1', '9,1 m²', 470, 470], ['Sov. 2', '6,7 m²', 470, 530], ['Sov. 3', '6,9 m²', 470, 660], ['Sov. 4', '9,5 m²', 515, 765],
+    ['Bad', '3,2 m²', 870, 625], ['Kjøkken/stue/spis', '27,8 m²', 1035, 680], ['Sov', '6,4 m²', 1215, 600], ['Entré', '3,9 m²', 1200, 690],
+    [w ? 'Mellombygg' : 'Uteplass', '', 735, 700], [w ? 'Bred trapp' : 'Amfitrapp', '', 720, 510]];
+  g.userData.labels = rows.map(([t, s, u, v]) => ({ t, s, p: fromPx(u, v) }));
+  if (shower) g.userData.labels.push({ t: 'Utedusj', s: '', p: [T.def.x0 + 0.75, T.def.y0 - 0.75], frame: true });
+  return g;
+}
+const A2003_FP = [rectPoly(-13.3, -4.0, -7.4, 6.4), rectPoly(-4.3, -2.7, 7.6, 3.0)];
+const MELLOM_A2003 = rectPoly(-7.4, -2.85, -4.3, 3.1);
+
 // ---------- alternativer ----------
 // Rammekoordinater for veggliv (takfot fra situasjonsplanene minus ca. 0.35 m utstikk)
 export const VARIANTS = [
@@ -361,43 +456,37 @@ export const VARIANTS = [
   {
     id: 'A2003', name: 'Skisse A20-03 – 4 soverom', plan: 'V1', bya: 124.1, detailed: true,
     desc: 'Detaljert skisse (02.09.26): hoveddel med kjøkken/stue/spis 27,8 m², bad, soverom og entré. Ny tverrfløy med 4 soverom (bl.a. «fire barn i køyeseng»). Amfitrapp og uteplass med pergola mellom. Skru av taket for å se planløsningen.',
+    wishText: WISH_TEXT, archBya: 124.1,
     keep: ['deck', 'bod', 'canoe'],
-    build: (m) => {
-      const g = new THREE.Group();
-      const R = walls.A2003;
-      g.add(planVolume(R, [-4.1, -2.6, 7.4, 2.8], FLOOR, { axis: 'x', pitch: 20, overhang: 0.4 }, m).group);
-      g.add(planVolume(R, [-13.1, -3.8, -7.7, 6.2], FLOOR, { axis: 'y', pitch: 22, overhang: 0.35 }, m).group);
-      g.add(pergola(-7.85, -3.88, -0.6, 2.58, FLOOR + 2.5, m, true));
-      g.add(deck(rectPoly(-7.85, -2.32, -3.88, 2.58), FLOOR - 0.03, m));
-      // amfitrapp ned mot plenen (ØNØ)
-      const b = new Bag();
-      for (let i = 0; i < 4; i++) b.add(m.deck, segBox(-7.6, 2.75 + i * 0.4, -4.1, 2.75 + i * 0.4, heightAt(...fromFrame(-6, 3.5)) - 0.3, FLOOR - 0.03 - i * 0.38, 0.4));
-      const rows = [['Sov. 1', '9,1 m²', 470, 470], ['Sov. 2', '6,7 m²', 470, 530], ['Sov. 3', '6,9 m²', 470, 660], ['Sov. 4', '9,5 m²', 515, 765],
-        ['Bad', '3,2 m²', 870, 625], ['Kjøkken/stue/spis', '27,8 m²', 1035, 680], ['Sov', '6,4 m²', 1215, 600], ['Entré', '3,9 m²', 1200, 690], ['Uteplass', '', 735, 700], ['Amfitrapp', '', 720, 510]];
-      b.build(g);
-      g.userData.labels = rows.map(([t, s, u, v]) => ({ t, s, p: fromPx(u, v) }));
-      return g;
-    },
-    footprints: [rectPoly(-13.3, -4.0, -7.4, 6.4), rectPoly(-4.3, -2.7, 7.6, 3.0)],
+    build: (m, mk, o) => buildA2003(m, o),
+    footprints: (o) => (o?.wishes !== false ? [...A2003_FP, MELLOM_A2003] : A2003_FP),
   },
   {
     id: 'A2002', name: 'Skisse A20-02 – L-fløy med stue', plan: 'V1', bya: null, detailed: true,
     desc: 'Detaljert skisse (02.09.26): som A20-03, men ny fløy er L-formet med egen stue 15,5 m², tre soverom, gang og WC. Hoveddel med kjøkken/stue/spis og større soverom 8,1 m².',
+    wishText: WISH_TEXT,
     keep: ['deck', 'bod', 'canoe'],
-    build: (m) => {
+    build: (m, mk, o) => {
       const g = new THREE.Group();
-      const R = walls.A2002;
-      g.add(planVolume(R, [-4.1, -2.6, 7.6, 2.8], FLOOR, { axis: 'x', pitch: 20, overhang: 0.4 }, m).group);
+      const R = walls.A2002, w = o?.wishes !== false;
+      const L = planVolume(R, [-15.5, -2.6, -8.5, 2.45], FLOOR, { axis: 'x', pitch: 22, overhang: 0.35 }, m);
+      const M = planVolume(R, [-4.1, -2.6, 7.6, 2.8], FLOOR, { axis: 'x', pitch: 20, overhang: 0.4 }, m,
+        w && ((d) => { joinRoof(d, L.def); roadWindows(d, A2002_ROOMS, o?.windows); }));
+      g.add(M.group, L.group);
       g.add(planVolume(R, [-14.6, 2.4, -9.3, 8.5], FLOOR, { axis: 'y', pitch: 22, overhang: 0.35 }, m).group);
-      g.add(planVolume(R, [-15.5, -2.6, -8.5, 2.45], FLOOR, { axis: 'x', pitch: 22, overhang: 0.35 }, m).group);
-      g.add(deck(rectPoly(-8.71, -2.32, -3.88, 2.58), FLOOR - 0.03, m));
-      g.add(pergola(-8.71, -3.88, -1.0, 2.58, FLOOR + 2.5, m, false));
+      const b = new Bag();
+      if (w) addWishes(g, b, m, M.def, L.def);
+      else {
+        g.add(deck(rectPoly(-8.71, -2.32, -3.88, 2.58), FLOOR - 0.03, m));
+        g.add(pergola(-8.71, -3.88, -1.0, 2.58, FLOOR + 2.5, m, false));
+      }
+      b.build(g);
       const rows = [['Sov', '8,3 m²', 410, 370], ['WC', '1,5 m²', 543, 362], ['Sov', '7,4 m²', 410, 500], ['Gang', '3,8 m²', 540, 470], ['Sov', '6,6 m²', 375, 605],
-        ['Stue', '15,5 m²', 520, 640], ['Bad', '3,7 m²', 875, 625], ['Kjøkken/stue/spis', '', 1035, 690], ['Sov', '8,1 m²', 1255, 605], ['Entré', '4,9 m²', 1210, 690], ['Uteplass', '', 715, 640]];
+        ['Stue', '15,5 m²', 520, 640], ['Bad', '3,7 m²', 875, 625], ['Kjøkken/stue/spis', '', 1035, 690], ['Sov', '8,1 m²', 1255, 605], ['Entré', '4,9 m²', 1210, 690], [w ? 'Mellombygg' : 'Uteplass', '', 715, 640]];
       g.userData.labels = rows.map(([t, s, u, v]) => ({ t, s, p: fromPx(u, v) }));
       return g;
     },
-    footprints: [rectPoly(-15.6, -2.7, -8.4, 2.6), rectPoly(-14.7, 2.6, -9.2, 8.6), rectPoly(-4.3, -2.7, 7.8, 3.0)],
+    footprints: (o) => [rectPoly(-15.6, -2.7, -8.4, 2.6), rectPoly(-14.7, 2.6, -9.2, 8.6), rectPoly(-4.3, -2.7, 7.8, 3.0), ...(o?.wishes !== false ? [rectPoly(-8.4, -2.85, -4.3, 3.1)] : [])],
   },
 ];
 
@@ -423,6 +512,13 @@ function steps(bag, m, x0, x1, yFrom, dir, zFrom, zTo, tread = 0.28, open = fals
 }
 
 export const IDEAS = [
+  {
+    id: 'U1', name: 'Utkast – A20-03 med utedusj', plan: 'V1', bya: null, archBya: 124.1, detailed: true, idea: true,
+    desc: 'Utkast fra 3D-studien basert på skisse A20-03 med alle eiernes ønsker (forlenget terrasse, mellombygg under saltak, bred trapp og hellelagt gangvei mot veien, tretrapp ved berget og større avlange vinduer mot veien). I tillegg en utedusj i det ytre hjørnet av tverrfløyen (mot berget i vest), der begge veggene er tette. Den er skjermet med stående spiler, har spilegulv og dusj montert på gavlveggen, og nås fra terrassen via en smal platting langs gavlen. Ligger i le og får kveldssol.',
+    keep: ['deck', 'bod', 'canoe'],
+    build: (m, mk, o) => buildA2003(m, o, { shower: true }),
+    footprints: [...A2003_FP, MELLOM_A2003],
+  },
   {
     id: 'N1', name: 'Idé 1 – Sovehems i ny nordfløy', plan: 'eks', bya: null, idea: true,
     desc: 'Nordfløyen og annekset erstattes av en 1½-etasjes fløy med bratt saltak (38°) og takarker. Tre soverom og bad på bakkeplan, sovehems/loft over. Gir mest mulig soveplass uten å øke fotavtrykket mye – plenen og utsikten beholdes, og fløyen trappes 35 cm ned etter terrenget.',
@@ -620,7 +716,7 @@ export function buildSite(scene, opts) {
     }
     if (v.keep.includes('annex')) vroot.add(buildAnnex(mAnnex));
     let built = null;
-    if (v.build) { built = v.build(mNew, (c, r, vt, mod) => materials(c, r, vt, mod)); vframe.add(built); }
+    if (v.build) { built = v.build(mNew, (c, r, vt, mod) => materials(c, r, vt, mod), opts); vframe.add(built); }
     // rives (spøkelse)
     const ghosts = new THREE.Group();
     const gm = new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.22, depthWrite: false });
@@ -655,7 +751,7 @@ export function buildSite(scene, opts) {
     vroot.add(labels);
     vroot.traverse((o) => { if (o.isMesh && o.material !== gm) { o.castShadow = true; o.receiveShadow = true; } });
     root.add(vroot);
-    current = { root: vroot, ghosts, labels, variant: v };
+    current = { root: vroot, ghosts, labels, variant: v, built };
     applyRoofs();
     return describe(v);
   }
@@ -680,9 +776,9 @@ export function buildSite(scene, opts) {
       maxEave = Math.max(maxEave, (u.zEave ?? u.floor + 2.5) - avg);
       area += (x1 - x0) * (y1 - y0);
     }
-    if (v.footprints) {
+    const fp = fpOf(v);
+    if (fp) {
       // union av fotavtrykk (takflate) på 0.25 m rutenett
-      const fp = v.footprints;
       const xs = fp.flat().map((p) => p[0]), ys = fp.flat().map((p) => p[1]);
       let n = 0;
       for (let x = Math.min(...xs); x < Math.max(...xs); x += 0.25) for (let y = Math.min(...ys); y < Math.max(...ys); y += 0.25) {
@@ -690,17 +786,28 @@ export function buildSite(scene, opts) {
       }
       area = n * 0.0625;
     }
-    return { v, maxFacade, maxRidge, maxEave, area };
+    const wishes = !!v.wishText && opts.wishes !== false, added = current.built?.userData.addedBya;
+    // med overdekket mellombygg: arkitektens BYA + mellombygget (der arkitekten har oppgitt BYA)
+    const bya = added && v.archBya ? Math.round((v.archBya + added) * 10) / 10 : wishes ? null : v.bya;
+    const byaNote = added && v.archBya ? `arkitektens ${v.archBya.toLocaleString('nb-NO')} m² + overdekket mellombygg ca. ${added.toFixed(0)} m²` : null;
+    return { v, maxFacade, maxRidge, maxEave, area, bya, byaNote, desc: wishes ? v.desc + v.wishText : v.desc };
   }
 
+  const fpOf = (v) => (typeof v?.footprints === 'function' ? v.footprints(opts) : v?.footprints);
   function footprints() {
-    const v = current?.variant;
-    if (!v?.footprints) return [];
-    return v.footprints.map(toLocalPoly);
+    return (fpOf(current?.variant) || []).map(toLocalPoly);
+  }
+  // terrasser som krever at terrenget senkes under dekket: [{ poly (lokalt), z }]
+  function clamps() {
+    return (current?.built?.userData.clamps || []).map((c) => ({ poly: toLocalPoly(c.poly), z: c.z }));
+  }
+  // trapper/stier/terrasser der trær og gress fjernes
+  function clearings() {
+    return (current?.built?.userData.clear || []).map(toLocalPoly);
   }
 
   return {
-    root, show, footprints,
+    root, show, footprints, clamps, clearings,
     setRoofs(on) { state.roofs = on; applyRoofs(); },
     setGhosts(on) { state.ghosts = on; if (current) current.ghosts.visible = on; },
     animate(t) { flag.userData.animate(t); },

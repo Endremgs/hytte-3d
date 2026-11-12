@@ -1,19 +1,25 @@
-// Terrasse oppå det lille berget mellom terrassekroken (spisebordet) og flaggstanga.
+// Terrasse på det lille berget mellom terrassekroken (spisebordet) og flaggstanga.
 // Berget er en flat knaus på ca. 14,6 moh. (laserdata), ca. 1 m over dagens terrasse.
+// Terrassen senkes ned i berget (sprenges/pigges ut) i stedet for å ligge oppå: bergflatene rundt
+// blir en lun «grop» med skjæringer i fjell, og trappa ned til dagens terrasse blir kortere.
 // Alt i bygningsrammen (x' mot SSØ, y' mot ØNØ), se geo.js.
 import * as THREE from 'three';
-import { heightAt, naturalHeight, fromFrame } from './geo.js';
+import { naturalHeight, fromFrame, toFrame, terrainEdits } from './geo.js';
 import { makeMaterials, segBox, prism, Bag } from './kit.js';
+import { rockTex } from './textures.js';
 import { frameGroup, DECK_Z } from './site.js';
 
 const DECK_FLOOR = DECK_Z; // dagens terrasse
 export const ROCKDECK = { x0: 11.0, y1: -2.1 }; // kant mot dagens terrasse og kant mot plenen (øst)
 
-export function buildRockDeck(scene) {
+export function buildRockDeck(scene, onTerrainChange = () => {}) {
   const root = frameGroup();
   scene.add(root);
-  const p = { on: false, length: 5.5, depth: 3.0, rail: 'tre', furniture: 'spise' };
-  let info = {};
+  // sink: hvor dypt dekket ligger under bergflaten (snitt av berget under terrassen)
+  const p = { on: false, length: 5.5, depth: 3.0, sink: 0.6, rail: 'tre', furniture: 'spise' };
+  let info = {}, edit = null;
+  const rockFace = new THREE.MeshStandardMaterial({ map: rockTex(512), color: 0xa29e96, roughness: 0.95 });
+  rockFace.name = 'fjellskjaering';
   const mats = makeMaterials('dagens', 'bolge', false);
   const post = new THREE.MeshStandardMaterial({ color: 0x3a2f27, roughness: 0.85 });
   const glass = new THREE.MeshPhysicalMaterial({ color: 0xcfe3e6, roughness: 0.05, transmission: 0.85, transparent: true, opacity: 0.35, thickness: 0.01 });
@@ -27,15 +33,17 @@ export function buildRockDeck(scene) {
 
   function rebuild() {
     root.clear();
-    if (!p.on) { info = {}; return info; }
+    const old = edit;
+    if (old) { terrainEdits.splice(terrainEdits.indexOf(old), 1); edit = null; }
+    if (!p.on) { info = {}; onTerrainChange(null, old); return info; }
     const x0 = ROCKDECK.x0, x1 = x0 + p.length, y1 = ROCKDECK.y1, y0 = y1 - p.depth;
-    // dekkehøyde: litt over høyeste punkt på berget under terrassen
-    let top = -1e9, low = 1e9;
+    // dekkehøyde: bergflaten under terrassen (snitt) minus valgt nedsenking, men ikke under dagens terrasse
+    let top = -1e9, low = 1e9, sum = 0, cnt = 0;
     for (let i = 0; i <= 12; i++) for (let j = 0; j <= 8; j++) {
       const h = g(x0 + (p.length * i) / 12, y0 + (p.depth * j) / 8);
-      top = Math.max(top, h); low = Math.min(low, h);
+      top = Math.max(top, h); low = Math.min(low, h); sum += h; cnt++;
     }
-    const z = Math.round((top + 0.18) * 20) / 20;
+    const z = Math.max(DECK_FLOOR, Math.round((sum / cnt - p.sink) * 20) / 20);
     const bag = new Bag();
     // dekke (bord på tvers av lengderetningen) + kantbord
     bag.add(mats.deck, prism([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], z - 0.05, z, 1 / 1.2));
@@ -49,17 +57,52 @@ export function buildRockDeck(scene) {
       const gh = g(x, y);
       if (z - 0.25 - gh > 0.03) bag.add(post, segBox(x - 0.05, y, x + 0.05, y, gh - 0.05, z - 0.25, 0.1));
     }
-    // trapp ned til dagens terrasse (i kroken ved spisebordet)
+    // trapp opp fra kanten av dagens terrasse (i kroken ved spisebordet), så en gang på dekkenivå
+    // gjennom berget fram til terrassen
     const rise = z - DECK_FLOOR;
     const n = Math.max(1, Math.round(rise / 0.18));
     const run = 0.27, sw = 1.1, sy0 = -4.55, sy1 = sy0 + sw;
-    const sx0 = x0 - n * run;
+    const sx0 = 8.6, sx1 = sx0 + n * run;
+    if (sx1 < x0) bag.add(mats.deck, prism([[sx1, sy0], [x0, sy0], [x0, sy1], [sx1, sy1]], z - 0.05, z, 1 / 1.2));
     for (let k = 0; k < n; k++) {
       const xa = sx0 + k * run, zt = DECK_FLOOR + ((k + 1) * rise) / n;
       // massive trinn (oppbygd trapp) med inntrukket opptrinn
       bag.add(mats.deck, segBox(xa, (sy0 + sy1) / 2, xa + run + 0.03, (sy0 + sy1) / 2, zt - 0.05, zt, sw));
       bag.add(post, segBox(xa + 0.03, (sy0 + sy1) / 2, xa + run, (sy0 + sy1) / 2, DECK_FLOOR, zt - 0.05, sw - 0.06));
     }
+    // berget pigges ut under terrassen og i trappeløpet (terrenget senkes like under dekket/trinnene)
+    const stairZ = (fx) => DECK_FLOOR + rise * Math.max(0, Math.min(1, Math.ceil((fx - sx0) / run) / n));
+    edit = {
+      poly: [[sx0, y0], [x1, y0], [x1, y1], [sx0, y1]].map(([x, y]) => fromFrame(x, y)),
+      heightAt(x, y, h) {
+        const [fx, fy] = toFrame(x, y);
+        if (fx >= x0 - 0.02 && fx <= x1 + 0.02 && fy >= y0 - 0.02 && fy <= y1 + 0.02) return Math.min(h, z - 0.12);
+        if (fx >= sx0 - 0.02 && fx < x0 && fy >= sy0 - 0.02 && fy <= sy1 + 0.02) return Math.min(h, stairZ(fx) - 0.12);
+        return null;
+      },
+    };
+    terrainEdits.push(edit);
+    onTerrainChange(edit, old);
+    // fjellskjæringer: loddrette bergvegger der berget rundt står høyere enn dekket/trinnene
+    let maxCut = 0;
+    const face = (ax, ay, bx, by, ox, oy, floorAt) => {
+      const L = Math.hypot(bx - ax, by - ay), m = Math.max(1, Math.ceil(L / 0.3));
+      for (let k = 0; k < m; k++) {
+        const t0 = k / m, t1 = (k + 1) / m;
+        const px0 = ax + (bx - ax) * t0, py0 = ay + (by - ay) * t0, px1 = ax + (bx - ax) * t1, py1 = ay + (by - ay) * t1;
+        const mx = (px0 + px1) / 2, my = (py0 + py1) / 2, zf = floorAt(mx);
+        const gh = Math.max(g(px0 + ox * 0.15, py0 + oy * 0.15), g(px1 + ox * 0.15, py1 + oy * 0.15));
+        if (gh - zf < 0.04) continue;
+        maxCut = Math.max(maxCut, gh - zf);
+        bag.add(rockFace, segBox(px0 + ox * 0.1, py0 + oy * 0.1, px1 + ox * 0.1, py1 + oy * 0.1, zf - 0.2, gh + 0.03, 0.2, 1 / 1.5));
+      }
+    };
+    const flat = () => z;
+    face(x0, y0, x1, y0, 0, -1, flat); face(x1, y0, x1, y1, 1, 0, flat); face(x0, y1, x1, y1, 0, 1, flat);
+    face(x0, y0, x0, sy0, -1, 0, flat); face(x0, sy1, x0, y1, -1, 0, flat);
+    face(sx0, sy0, x0, sy0, 0, -1, stairZ); face(sx0, sy1, x0, sy1, 0, 1, stairZ);
+    for (let i = 0; i <= 12; i++) for (let j = 0; j <= 8; j++) maxCut = Math.max(maxCut, g(x0 + (p.length * i) / 12, y0 + (p.depth * j) / 8) - z);
+
     // håndløper på sørsiden av trappa
     for (let k = 0; k <= n; k += Math.max(1, Math.floor(n / 3))) {
       const xa = sx0 + k * run + 0.1, zt = DECK_FLOOR + (k * rise) / n;
@@ -87,7 +130,7 @@ export function buildRockDeck(scene) {
           // sjekk fall like utenfor kanten
           const ox = ax === bx ? Math.sign(ax - (x0 + x1) / 2) * 0.6 : 0, oy = ay === by ? Math.sign(ay - (y0 + y1) / 2) * 0.6 : 0;
           const drop = z - g(mx + ox, my + oy);
-          if (drop < 0.5 && !(ax === x0 && bx === x0)) continue;
+          if (drop < 0.5) continue; // nedsenket: rekkverk bare der det faktisk er fall utenfor kanten
           railLen += L / m;
           if (p.rail === 'tre') {
             bag.add(mats.deck, segBox(px0, py0, px1, py1, z + 0.95, z + 1.0, 0.12));
@@ -144,7 +187,7 @@ export function buildRockDeck(scene) {
     root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
 
     const area = p.length * p.depth;
-    info = { area, z, overDeck: z - DECK_FLOOR, maxDrop: z - low, steps: n, railLen,
+    info = { area, z, overDeck: z - DECK_FLOOR, maxDrop: Math.max(0, z - low), maxCut, top, steps: n, railLen,
       poly: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([x, y]) => fromFrame(x, y)), center: fromFrame(cx, cy) };
     return info;
   }

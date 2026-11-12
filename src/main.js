@@ -58,6 +58,7 @@ const state = {
   variant: 'eks', month: 7, day: 15, hour: 19.0,
   cladding: 'dagens', roof: 'bolge', vertical: false,
   roofs: true, ghosts: true, propLines: true, plan: false, oak: true, mode: 'orbit',
+  wishes: true, windows: 'liggende', // eiernes ønsker på tverrfløy-skissene
 };
 
 function updateSun() {
@@ -150,12 +151,19 @@ const parking = buildParking(scene, (edit, old) => {
 parking.params.s = roadSOf(3.5);
 let fitted = false; // parkeringshøyde tilpasses terrenget første gang den slås på
 
-const rockDeck = buildRockDeck(scene);
+function refreshAround(polys) {
+  const pts = polys.flat();
+  if (!pts.length) return;
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  terrain.refresh(Math.min(...xs) - 1, Math.max(...xs) + 1, Math.min(...ys) - 1, Math.max(...ys) + 1);
+}
+const rockDeck = buildRockDeck(scene, (edit, old) => refreshAround([edit?.poly, old?.poly].filter(Boolean)));
 const DECK_AREA = Math.round(polyArea(DECK));
 function updateExclusions() {
   const polys = [...site.footprints()];
   if (parking.poly) polys.push(parking.poly);
   if (rockDeck.info.poly) polys.push(rockDeck.info.poly);
+  polys.push(...site.clearings());
   veg.setExclusions(polys);
   veg.grass.hideIn(polys);
 }
@@ -181,7 +189,7 @@ const VIEWS = {
   inngang: { name: 'Langs inngangssiden', cam: () => { const [x, y] = fromFrame(3.0, 6.0); return [x, y, heightAt(...fromFrame(3.0, 6.0)) + 1.65]; }, tgt: () => { const [x, y] = fromFrame(-14, 3.0); return [x, y, 13.8]; }, eye: true },
   veien: { name: 'Fra veien (nord)', cam: [17.5, 26, 10.3], tgt: [6, 0, 12.5], eye: true },
   jordet: { name: 'Fra jordet', cam: [62, -6, 9.6], tgt: [0, 0, 13.5], eye: true },
-  berget: { name: 'Fra terrassen på berget', cam: () => { const [x, y] = fromFrame(11.6, -4.7); return [x, y, 16.55]; }, tgt: () => { const [x, y] = fromFrame(20, 12); return [x, y, 12.5]; }, eye: true },
+  berget: { name: 'Fra terrassen på berget', cam: () => { const [x, y] = fromFrame(11.6, -4.7); return [x, y, (rockDeck.info.z ?? 14.9) + 1.65]; }, tgt: () => { const [x, y] = fromFrame(20, 12); return [x, y, 12.5]; }, eye: true },
   bergetSett: { name: 'Se på bergterrassen', cam: () => { const [x, y] = fromFrame(6, 9); return [x, y, 18.5]; }, tgt: () => { const [x, y] = fromFrame(13, -3.6); return [x, y, 14.6]; } },
   ovenfra: { name: 'Rett ovenfra (plan)', cam: [0.01, -0.5, 95], tgt: [0, 0, 12] },
 };
@@ -245,8 +253,11 @@ function opt(sel, obj, cur) { sel.innerHTML = Object.entries(obj).map(([k, v]) =
 
 function renderVariants() {
   const firstIdea = VARIANTS.find((v) => v.idea);
-  $('variants').innerHTML = VARIANTS.map((v) => `${v === firstIdea ? '<div class="ideas">Nye ideer – skisser fra 3D-studien, ikke vurdert av arkitekt</div>' : ''}<button class="variant ${v.idea ? 'idea ' : ''}${v.id === state.variant ? 'on' : ''}" data-v="${v.id}">
-      <b>${v.name}</b><span>${v.bya ? `BYA ${v.bya.toLocaleString('nb-NO')} m²` : v.idea ? 'BYA målt i modellen' : 'BYA ikke oppgitt'}</span></button>`).join('');
+  $('variants').innerHTML = VARIANTS.map((v) => {
+    const bya = v.wishText && state.wishes ? null : v.bya, grown = (v.wishText && state.wishes) || v.archBya;
+    return `${v === firstIdea ? '<div class="ideas">Nye ideer – skisser fra 3D-studien, ikke vurdert av arkitekt</div>' : ''}<button class="variant ${v.idea ? 'idea ' : ''}${v.id === state.variant ? 'on' : ''}" data-v="${v.id}">
+      <b>${v.name}</b><span>${bya ? `BYA ${bya.toLocaleString('nb-NO')} m²` : grown && v.archBya ? `BYA ${v.archBya.toLocaleString('nb-NO')} m² + mellombygg` : v.idea || v.wishText ? 'BYA målt i modellen' : 'BYA ikke oppgitt'}</span></button>`;
+  }).join('');
   document.querySelectorAll('.variant').forEach((b) => b.onclick = () => selectVariant(b.dataset.v));
 }
 
@@ -262,17 +273,33 @@ function setDeckClamp(on) {
   terrain.refresh(Math.min(...xs) - 1, Math.max(...xs) + 1, Math.min(...ys) - 1, Math.max(...ys) + 1);
 }
 
+// Terrasser i alternativene (f.eks. forlenget terrasse og utedusj): terrenget senkes under dekket.
+// Gamle senkinger fjernes før bygging slik at trapper og stier beregnes mot naturlig terreng.
+let variantEdits = [];
+function showVariant(id) {
+  const old = variantEdits;
+  for (const e of old) terrainEdits.splice(terrainEdits.indexOf(e), 1);
+  const d = site.show(id);
+  variantEdits = site.clamps().map((c) => ({ poly: c.poly, heightAt: (x, y, h) => (pointInPoly(x, y, c.poly) ? Math.min(h, c.z - 0.15) : null) }));
+  terrainEdits.push(...variantEdits);
+  refreshAround([...old, ...variantEdits].map((e) => e.poly));
+  return d;
+}
+
 function selectVariant(id) {
   state.variant = id;
   setDeckClamp(VARIANTS.find((x) => x.id === id).keep.includes('deck'));
-  const d = site.show(id);
+  const d = showVariant(id);
   renderVariants();
   const v = d.v;
   const ok = (c) => (c ? '<i class="ok">✓</i>' : '<i class="bad">!</i>');
-  const bya = v.bya ?? Math.round(d.area / 5) * 5;
-  $('variantInfo').innerHTML = `<p>${v.desc}</p>
+  const bya = d.bya ?? Math.round(d.area / 5) * 5;
+  $('wishCtl').style.display = v.wishText || v.id === 'U1' ? 'block' : 'none';
+  $('wishRow').style.display = v.wishText ? '' : 'none';
+  $('wishWin').classList.toggle('dim', !!v.wishText && !state.wishes);
+  $('variantInfo').innerHTML = `<p>${d.desc}</p>
     <table>
-      <tr><td>BYA ${v.bya ? '(arkitekt)' : '(ca., målt i modellen inkl. takutstikk)'}</td><td>${bya.toLocaleString('nb-NO')} m² ${ok(bya <= 130)}</td><td class="lim">maks 130 m²</td></tr>
+      <tr><td>BYA ${d.byaNote ? `(${d.byaNote})` : d.bya ? '(arkitekt)' : '(ca., målt i modellen inkl. takutstikk)'}</td><td>${bya.toLocaleString('nb-NO')} m² ${ok(bya <= 130)}</td><td class="lim">maks 130 m²</td></tr>
       <tr><td>Lengste fasade</td><td>${d.maxFacade.toFixed(1)} m ${ok(d.maxFacade < 15)}</td><td class="lim">under 15 m</td></tr>
       <tr><td>Mønehøyde (snitt terreng)</td><td>${d.maxRidge.toFixed(1)} m ${ok(d.maxRidge < 6.5)}</td><td class="lim">under 6,5 m</td></tr>
       <tr><td>Gesimshøyde (snitt terreng)</td><td>${d.maxEave.toFixed(1)} m ${ok(d.maxEave < 4.0)}</td><td class="lim">under 4,0 m</td></tr>
@@ -297,9 +324,11 @@ function updateRockDeckUI() {
     <tr><td>Areal ny terrasse</td><td>${i.area.toFixed(1)} m²</td><td></td></tr>
     <tr><td>Sammen med dagens terrasse (ca. ${DECK_AREA} m²)</td><td>${total.toFixed(0)} m² ${ok(total <= 40)}</td><td class="lim">uteareal m/fast dekke maks 40 m²*</td></tr>
     ${DECK_AREA > 40 ? `<tr><td colspan="3" class="lim">Dagens terrasse er alene over 40 m², så en ny terrasse må trolig avklares med kommunen (ev. dispensasjon) – eller kombineres med at dagens terrasse gjøres mindre.</td></tr>` : ''}
-    <tr><td>Høyde over dagens terrasse</td><td>${i.overDeck.toFixed(2)} m</td><td class="lim">${i.steps} trinn</td></tr>
-    <tr><td>Største fallhøyde</td><td>${i.maxDrop.toFixed(1)} m</td><td class="lim">${i.maxDrop > 0.5 ? 'rekkverk påkrevd (TEK17)' : ''}</td></tr>
-  </table><p class="note">*Bestemmelsen gjelder opparbeidede uteareal tilknyttet bebyggelsen. Terrassen ligger på stolper over berget uten terrenginngrep.</p>`;
+    <tr><td>Dekket ligger</td><td>${i.z.toFixed(2)} moh.</td><td class="lim">${(i.top - i.z).toFixed(1)} m under høyeste punkt på berget</td></tr>
+    <tr><td>Høyde over dagens terrasse</td><td>${i.overDeck.toFixed(2)} m</td><td class="lim">${i.overDeck > 0.05 ? `${i.steps} trinn` : 'samme nivå'}</td></tr>
+    <tr><td>Største skjæring i berget</td><td>${i.maxCut.toFixed(1)} m ${ok(i.maxCut <= 1.0)}</td><td class="lim">maks 1,0 m terrenginngrep</td></tr>
+    <tr><td>Største fallhøyde</td><td>${i.maxDrop.toFixed(1)} m</td><td class="lim">${i.maxDrop > 0.5 ? 'rekkverk påkrevd (TEK17)' : 'ikke krav om rekkverk'}</td></tr>
+  </table><p class="note">*Bestemmelsen gjelder opparbeidede uteareal tilknyttet bebyggelsen. Terrassen senkes ned i berget (pigging/sprengning), slik at bergflatene rundt gir le og kan brukes som sittekant.</p>`;
 }
 
 function updateParkingUI() {
@@ -346,6 +375,12 @@ function bindUI() {
     playing = setInterval(() => { let h = +timeEl.value + 0.1; if (h > 23.5) h = 4; timeEl.value = h; sunUI(); }, 60);
   };
   sunUI();
+
+  // eiernes ønsker på tverrfløy-skissene
+  $('wishes').checked = state.wishes;
+  $('wishes').onchange = (e) => { state.wishes = e.target.checked; selectVariant(state.variant); };
+  $('windows').value = state.windows;
+  $('windows').onchange = (e) => { state.windows = e.target.value; selectVariant(state.variant); };
 
   // materialer
   opt($('clad'), CLADDING, state.cladding);
@@ -411,13 +446,14 @@ function bindUI() {
   // terrasse på berget
   const rp = rockDeck.params;
   const rdUI = () => {
-    rp.on = $('rdOn').checked; rp.length = +$('rdLen').value; rp.depth = +$('rdDep').value;
+    rp.on = $('rdOn').checked; rp.length = +$('rdLen').value; rp.depth = +$('rdDep').value; rp.sink = +$('rdSink').value;
     rp.rail = $('rdRail').value; rp.furniture = $('rdFurn').value;
     $('rdLenLbl').textContent = `${rp.length.toFixed(1)} m`; $('rdDepLbl').textContent = `${rp.depth.toFixed(1)} m`;
+    $('rdSinkLbl').textContent = `${rp.sink.toFixed(2).replace('.', ',')} m`;
     $('rdCtl').classList.toggle('dim', !rp.on);
     updateRockDeckUI();
   };
-  for (const id of ['rdOn', 'rdLen', 'rdDep', 'rdRail', 'rdFurn']) $(id).addEventListener('input', rdUI);
+  for (const id of ['rdOn', 'rdLen', 'rdDep', 'rdSink', 'rdRail', 'rdFurn']) $(id).addEventListener('input', rdUI);
   $('rdView').onclick = () => { if (!$('rdOn').checked) { $('rdOn').checked = true; rdUI(); } goView('bergetSett'); };
   $('rdSit').onclick = () => { if (!$('rdOn').checked) { $('rdOn').checked = true; rdUI(); } goView('berget'); };
   rdUI();
@@ -443,7 +479,9 @@ function encodeShared() {
   if (state.vertical) q.set('sk', '1');
   if (!state.roofs) q.set('utentak', '1');
   const rp = rockDeck.params;
-  if (rp.on) q.set('bt', [rp.length, rp.depth, rp.rail, rp.furniture].join('_'));
+  if (rp.on) q.set('bt', [rp.length, rp.depth, rp.rail, rp.furniture, rp.sink].join('_'));
+  if (!state.wishes) q.set('onsker', '0');
+  if (state.windows !== 'liggende') q.set('vin', state.windows);
   return q.toString();
 }
 function applyShared(hash) {
@@ -456,9 +494,12 @@ function applyShared(hash) {
     if (q.has('sk')) { $('vert').checked = state.vertical = true; }
     if (q.has('t')) { const [d, h] = q.get('t').split('_'); $('date').value = d; set('time', h); }
     if (q.has('utentak')) set('tRoofs', false, 'change');
+    if (q.get('onsker') === '0') { $('wishes').checked = state.wishes = false; }
+    if (q.get('vin') === 'staende') { $('windows').value = state.windows = 'staende'; }
     if (q.has('bt')) {
-      const [len, dep, rail, furn] = q.get('bt').split('_');
+      const [len, dep, rail, furn, sink] = q.get('bt').split('_');
       $('rdLen').value = len; $('rdDep').value = dep;
+      if (sink != null && Number.isFinite(+sink)) $('rdSink').value = sink;
       if (['tre', 'glass', 'ingen'].includes(rail)) $('rdRail').value = rail;
       if (['spise', 'lounge', 'begge', 'ingen'].includes(furn)) $('rdFurn').value = furn;
       set('rdOn', true);
@@ -568,4 +609,8 @@ async function exportForRender({ month = state.month, day = state.day, hour = st
   };
 }
 
-window.__hytte = { exportForRender, encodeShared, scene, camera, orbit, goView, selectVariant, state, parking, site, renderer, updateParkingUI };
+// testhjelper: kamera og mål i rammen [x', y', h]
+function lookFrame(c, t) {
+  camera.position.copy(L2W(...fromFrame(c[0], c[1]), c[2])); orbit.target.copy(L2W(...fromFrame(t[0], t[1]), t[2])); orbit.update();
+}
+window.__hytte = { lookFrame, exportForRender, encodeShared, scene, camera, orbit, goView, selectVariant, state, parking, site, renderer, updateParkingUI };
